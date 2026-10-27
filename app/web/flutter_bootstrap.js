@@ -10,12 +10,18 @@
     '<b>PartyBroc n’arrive pas à démarrer sur ce navigateur.</b><br>' + why +
     '<br><br><small>' + navigator.userAgent + '</small>');
 
-  // Ce qu'il faut au minimum : WebAssembly et WebGL
+  // Indispensable : WebAssembly
   if (typeof WebAssembly !== 'object') return fail('WebAssembly n’est pas disponible.');
+
+  // WebGL : souvent coupé sur les navigateurs de TV. Sans lui, on dessine
+  // en mode logiciel (CanvasKit sur le processeur) : plus lent mais ça marche.
+  let webgl = false;
   try {
     const c = document.createElement('canvas');
-    if (!(c.getContext('webgl2') || c.getContext('webgl'))) return fail('WebGL n’est pas disponible.');
-  } catch (e) { return fail('WebGL n’est pas disponible.'); }
+    webgl = !!(c.getContext('webgl2') || c.getContext('webgl'));
+  } catch (e) { webgl = false; }
+  const config = webgl ? {} : { renderer: 'canvaskit', canvasKitForceCpuOnly: true };
+  if (!webgl) console.warn('PartyBroc : pas de WebGL, rendu logiciel');
 
   const slow = setTimeout(() => fail('Le chargement prend trop de temps (plus de 30 s).'), 30000);
   window.addEventListener('flutter-first-frame', () => {
@@ -25,6 +31,7 @@
   });
 
   _flutter.loader.load({
+    config: config,
     onEntrypointLoaded: async function (engineInitializer) {
       try {
         const app = await engineInitializer.initializeEngine();
