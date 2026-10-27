@@ -8,12 +8,17 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $repo = 'foclabroc/partybroc'
 
+# Arrête tout si une commande externe (git, npm, nssm) échoue
+function Check($what) { if ($LASTEXITCODE -ne 0) { throw "$what a échoué (code $LASTEXITCODE), mise à jour arrêtée." } }
+
 Write-Host '== Code du serveur' -ForegroundColor Cyan
 git -C $root pull --ff-only
+Check 'git pull'
 
 Write-Host '== Dépendances Node' -ForegroundColor Cyan
 Push-Location "$root\server"
 npm.cmd ci --omit=dev
+Check 'npm ci'
 Pop-Location
 
 Write-Host '== Site web' -ForegroundColor Cyan
@@ -29,5 +34,6 @@ Remove-Item $zip
 
 Write-Host '== Redémarrage du service' -ForegroundColor Cyan
 nssm restart partybroc
+Check 'nssm restart'
 Start-Sleep 2
 Invoke-RestMethod http://127.0.0.1:4100/health
