@@ -178,17 +178,35 @@ const handlers = {
 
   select_game(ws, m) {
     const { room, player: p } = ws.ctx;
-    if (!p || room.hostPid !== p.pid || !gameById(m.game)) return;
+    if (!p || room.hostPid !== p.pid || !gameById(m.game) || room.game) return;
     room.selectedGame = m.game;
     room.broadcast();
   },
 
-  start_game(ws) {
+  game_option(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || room.game) return;
+    const g = gameById(room.selectedGame);
+    const o = g?.options?.[m.key];
+    if (!o || !o.values.includes(m.value)) return;
+    room.options[g.id][m.key] = m.value;
+    room.broadcast();
+  },
+
+  async start_game(ws) {
     const { room, player: p } = ws.ctx;
     if (!p || room.hostPid !== p.pid) return;
     const g = gameById(room.selectedGame);
     if (!g.ready) return err(ws, `${g.title} arrive bientôt !`, 'not_ready');
     if (room.connectedCount() < g.min) return err(ws, `Il faut au moins ${g.min} joueurs`, 'not_enough');
+    try { await room.startGame(); } catch (e) { err(ws, e.message, 'start_failed'); }
+  },
+
+  // Fin de partie demandée depuis le podium ou en cours de jeu : relayé au jeu
+  game_msg(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || !room.game || !m.m || typeof m.m.t !== 'string') return;
+    room.game.onMessage(p, m.m);
   },
 
   ping(ws) { send(ws, { t: 'pong' }); },
@@ -223,6 +241,7 @@ wss.on('connection', (ws, req) => {
       player.ws = null;
       player.leftAt = Date.now();
       room.pickHost();
+      room.game?.onPlayerGone?.(player);
     }
     room.touch();
     room.broadcast();

@@ -8,6 +8,7 @@
 -- Le contenu des jeux (mots, questions…) arrivera dans des fichiers 02_, 03_…
 
 \set ON_ERROR_STOP on
+SET client_encoding = 'UTF8';
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS pb AUTHORIZATION CURRENT_USER;

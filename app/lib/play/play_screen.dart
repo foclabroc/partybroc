@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/quiz_play.dart';
+import '../games/quiz_state.dart';
 import '../models.dart';
 import '../net.dart';
 import '../theme.dart';
@@ -38,6 +40,7 @@ class _PlayScreenState extends State<PlayScreen> {
   String? _sToken;
   String? _myPid;
   RoomView? _room;
+  Map<String, dynamic>? _you; // état perso dans la partie en cours
   bool _pendingJoin = false;
 
   @override
@@ -102,7 +105,10 @@ class _PlayScreenState extends State<PlayScreen> {
         HapticFeedback.mediumImpact();
         setState(() => _step = _Step.lobby);
       case 'room':
-        setState(() => _room = RoomView.fromJson(m['room'] as Map<String, dynamic>));
+        setState(() {
+          _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
+          _you = m['you'] as Map<String, dynamic>?;
+        });
       case 'profile_ok':
         _toast('Profil mis à jour');
       case 'kicked':
@@ -229,6 +235,15 @@ class _PlayScreenState extends State<PlayScreen> {
       case _Step.lobby:
         final room = _room;
         if (room == null) return const Center(child: CircularProgressIndicator(color: Pb.pink));
+        if (room.live?['id'] == 'quiz') {
+          return QuizPlay(
+            room: room,
+            q: QuizState.fromJson(room.live!),
+            you: _you == null ? null : QuizYou.fromJson(_you!),
+            isHost: room.hostPid == _myPid,
+            send: _sock.send,
+          );
+        }
         return _LobbyView(
           room: room,
           myPid: _myPid,
@@ -372,6 +387,7 @@ class _LobbyView extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (p.score > 0) Text(Pb.pts(p.score), style: Pb.t(16, weight: 600, color: Pb.yellow)),
               if (isHost && p.pid != myPid)
                 IconButton(
                   tooltip: 'Retirer du salon',
@@ -394,9 +410,31 @@ class _LobbyView extends StatelessWidget {
                 send({'t': 'select_game', 'game': g.id});
               }),
             ),
+          if (game != null)
+            for (final e in game.options.entries)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                child: Row(children: [
+                  Text(e.value.label, style: Pb.t(16, weight: 600, color: Pb.muted)),
+                  const Spacer(),
+                  for (final v in e.value.values)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: ChoiceChip(
+                        label: Text('$v', style: Pb.t(15, weight: 600)),
+                        selected: room.options[e.key] == v,
+                        showCheckmark: false,
+                        selectedColor: Pb.pink,
+                        backgroundColor: Pb.card,
+                        side: BorderSide.none,
+                        onSelected: (_) => send({'t': 'game_option', 'key': e.key, 'value': v}),
+                      ),
+                    ),
+                ]),
+              ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: game == null ? null : () => send({'t': 'start_game'}),
+            onPressed: game == null || !game.ready ? null : () => send({'t': 'start_game'}),
             child: Text(game == null ? 'Lancer' : 'Lancer ${game.title}'),
           ),
         ] else ...[

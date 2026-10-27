@@ -45,6 +45,21 @@ export const db = {
       [partyId, playerId, name, score]);
   },
 
+  // Questions du quiz au hasard, sans celles déjà posées ce soir.
+  // Renvoie null si la base ne répond pas.
+  async quizQuestions(n, excludeIds) {
+    const r = await q(`select id, category, difficulty, question, good, bad from pb.pb_quiz_questions
+                       where active and not (id = any($2::int[]))
+                       order by random() limit $1`, [n, excludeIds]);
+    return r ? r.rows : null;
+  },
+
+  async gameSaved(partyId, game, startedAt, results) {
+    if (!partyId) return;
+    await q(`insert into pb.pb_games (party_id, game, started_at, ended_at, results)
+             values ($1, $2, $3, now(), $4)`, [partyId, game, new Date(startedAt), JSON.stringify(results)]);
+  },
+
   async close() {
     if (pool) await pool.end();
   },

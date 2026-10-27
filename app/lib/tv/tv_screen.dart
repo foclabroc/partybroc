@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/quiz_state.dart';
+import '../games/quiz_tv.dart';
 import '../models.dart';
 import '../net.dart';
 import '../theme.dart';
@@ -92,6 +94,8 @@ class _TvScreenState extends State<TvScreen> {
               child: Stack(children: [
                 if (_room == null)
                   Center(child: _waiting())
+                else if (_room!.live?['id'] == 'quiz')
+                  QuizTv(room: _room!, q: QuizState.fromJson(_room!.live!))
                 else
                   _Lobby(room: _room!, onNewRoom: _newRoom),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
@@ -297,6 +301,7 @@ class _PlayerTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Pb.t(34, weight: 600, color: p.connected ? Pb.text : Pb.muted),
         ),
+        if (p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(26, weight: 600, color: Pb.yellow)),
       ]),
     );
   }

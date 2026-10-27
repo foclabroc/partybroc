@@ -121,8 +121,8 @@ try {
   step("L'hôte coupe : le suivant devient hôte");
 
   // Hôte : choix du jeu, lancement d'un jeu pas prêt
-  b2.send({ t: 'select_game', game: 'quiz' });
-  room = (await tv.wait((m) => m.t === 'room' && m.room.selectedGame === 'quiz')).room;
+  b2.send({ t: 'select_game', game: 'dessin' });
+  room = (await tv.wait((m) => m.t === 'room' && m.room.selectedGame === 'dessin')).room;
   b2.send({ t: 'start_game' });
   assert.equal((await b2.wait('error')).code, 'not_ready');
   step("Choix du jeu par l'hôte, jeu pas encore prêt bien signalé");

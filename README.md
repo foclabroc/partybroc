@@ -9,7 +9,7 @@ La TV ouvre un salon et affiche un code et un QR. Chaque joueur scanne avec son 
 | | Jeu | État |
 |---|---|---|
 | 🎨 | Dessin à deviner | à venir |
-| 🧠 | Quiz culture G | à venir |
+| 🧠 | Quiz culture G | ✅ 150 questions, 10 catégories |
 | 👀 | Qui de nous ? | à venir |
 | ⚡ | Course de réflexes | à venir |
 | 😂 | Réponses drôles | à venir |

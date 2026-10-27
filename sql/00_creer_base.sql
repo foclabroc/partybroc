@@ -7,6 +7,7 @@
 -- Pixel Trade n'est pas touché : base, rôle et tables sont séparés.
 
 \set ON_ERROR_STOP on
+SET client_encoding = 'UTF8';
 
 \if :{?pw}
 \else

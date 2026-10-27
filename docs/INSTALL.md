@@ -26,10 +26,11 @@ cd D:\partybroc\sql
 psql -U postgres -d postgres -v pw="MOT_DE_PASSE" -f 00_creer_base.sql
 $env:PGPASSWORD = "MOT_DE_PASSE"
 psql -h localhost -U partybroc -d party -f 01_schema.sql
+psql -h localhost -U partybroc -d party -f 02_quiz.sql
 Remove-Item Env:PGPASSWORD
 ```
 
-Les deux fichiers sont relançables.
+Tous les fichiers sont relançables. Chaque nouveau jeu apportera son fichier (`03_…`) : il suffit de le lancer de la même façon.
 
 ## 3. Service Node
 

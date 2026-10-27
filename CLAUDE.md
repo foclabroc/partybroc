@@ -33,14 +33,20 @@ Règles du salon : code 4 consonnes, 10 joueurs max, pseudo 1–16 caractères u
 
 ## Ajouter un jeu
 
-Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientôt »). Un jeu sera un module `create(room)` qui reçoit les messages des joueurs et renvoie un état public (TV) et un état par joueur (téléphone). `start_game` est le point d'entrée.
+Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientôt », `options` = réglages de l'hôte). Modèle : `games/quiz.js`.
+- Classe avec `static async create(room, opts, hooks)` (charge le contenu en base), `start()`, `stop()`, `onMessage(player, m)`, `publicState()` (TV + tous), `playerState(pid)` (envoyé à chaque téléphone dans `you`), `onPlayerJoin(p)`, `onPlayerGone(p)`.
+- `hooks.changed()` → rediffuse l'état ; `hooks.finished(results)` → retour au salon, points ajoutés au score de la soirée, ligne dans `pb_games`.
+- Les téléphones envoient `game_msg {m: {...}}`, relayé au jeu. Messages hôte communs : `game_skip` (étape suivante / retour au salon depuis le podium), `game_end` (podium tout de suite).
+- **Jamais de réponse dans `publicState()` avant la révélation.**
+- Côté appli : `lib/games/<jeu>_state.dart` (lecture de l'état), `<jeu>_tv.dart`, `<jeu>_play.dart`, branchés dans `tv_screen.dart` et `play_screen.dart` selon `room.live['id']`.
 
 ## Tests
 
-- `cd server && npm test` : salon de bout en bout (15 étapes). Avec `PB_DB_URL` pour tester l'historique.
+- `cd server && npm test` : salon (15 étapes) puis quiz (8 étapes, délais ×10 plus courts avec `PB_FAST=1`). Le quiz a besoin de `PB_DB_URL` (questions en base).
 - `cd app && flutter analyze` : doit être propre.
 
 ## État
 
 - **0.1.0** (27/10/2026, poussé sur main) : base `party`, serveur, salon TV + téléphone (pseudo, selfie/galerie ou emoji, couleur), hôte, expulsion, reconnexion. Les 5 jeux sont listés mais pas encore jouables.
-- Ordre proposé (à valider) : Quiz culture G → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée et score global.
+- **0.2.0** (27/10/2026, pas encore poussé) : Quiz culture G jouable (`sql/02_quiz.sql`, 150 questions / 10 catégories). 5, 10, 15 ou 20 questions, 20 s chacune, points = 500 + rapidité (jusqu'à 500) + série (100 par bonne réponse d'affilée, 300 max). Pas de question répétée dans la même soirée. Score de soirée affiché au salon.
+- Ordre validé : Quiz culture G ✅ → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée.

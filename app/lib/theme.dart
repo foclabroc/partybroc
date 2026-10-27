@@ -23,6 +23,37 @@ class Pb {
 
   static Color playerColor(int i) => playerColors[i % playerColors.length];
 
+  /// Les 4 réponses du quiz : une couleur et une forme chacune (lisible même en daltonien)
+  static const answerColors = <Color>[Color(0xFFFF4F7B), Color(0xFF3FA9FF), Color(0xFFFFC23F), Color(0xFF3FD07A)];
+  static const answerIcons = <IconData>[
+    Icons.change_history_rounded, Icons.square_rounded, Icons.circle, Icons.star_rounded,
+  ];
+
+  /// Emoji de chaque catégorie du quiz
+  static String categoryEmoji(String? c) => switch (c) {
+        'Géographie' => '🌍',
+        'Histoire' => '🏰',
+        'Sciences' => '🔬',
+        'Cinéma & séries' => '🎬',
+        'Musique' => '🎵',
+        'Sport' => '⚽',
+        'Nature & animaux' => '🦁',
+        'Cuisine' => '🍳',
+        'Technologie' => '💻',
+        _ => '💡',
+      };
+
+  /// 1 234 au lieu de 1234
+  static String pts(num n) {
+    final s = n.round().abs().toString();
+    final b = StringBuffer(n < 0 ? '-' : '');
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) b.write('\u00A0');
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
   /// Emojis proposés quand on ne met pas de photo
   static const emojis = <String>[
     '🦊', '🐸', '🐼', '🐯', '🦁', '🐵', '🐙', '🦄', '🐲', '🐧', '🦉', '🐻',

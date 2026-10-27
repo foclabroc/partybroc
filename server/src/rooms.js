@@ -96,6 +96,14 @@ export class Room {
     this.maxSeen = 0;
     this.partyId = null;
     this.closed = false;
+    this.game = null;               // partie en cours (instance du jeu)
+    this.gameId = null;
+    this.gameStartedAt = 0;
+    this.starting = false;
+    this.usedQuiz = new Set();      // questions déjà posées ce soir
+    // Réglages choisis par l'hôte, par jeu
+    this.options = Object.fromEntries(GAMES.map((g) => [g.id,
+      Object.fromEntries(Object.entries(g.options || {}).map(([k, o]) => [k, o.def]))]));
   }
 
   // ---- état envoyé à tout le monde ----
@@ -106,7 +114,9 @@ export class Room {
       hostPid: this.hostPid,
       tvConnected: this.tv !== null,
       selectedGame: this.selectedGame,
-      games: GAMES.map(({ id, title, emoji, min, ready, pitch }) => ({ id, title, emoji, min, ready, pitch })),
+      games: GAMES.map(({ id, title, emoji, min, ready, pitch, options }) => ({ id, title, emoji, min, ready, pitch, options: options || {} })),
+      options: this.options[this.selectedGame] || {},
+      game: this.game ? this.game.publicState() : null,
       maxPlayers: config.maxPlayers,
       players: [...this.players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
@@ -115,9 +125,55 @@ export class Room {
   }
 
   broadcast() {
-    const msg = JSON.stringify({ t: 'room', room: this.view() });
-    if (this.tv) send(this.tv, msg);
-    for (const p of this.players.values()) if (p.ws) send(p.ws, msg);
+    const room = JSON.stringify(this.view());
+    if (this.tv) send(this.tv, `{"t":"room","room":${room}}`);
+    for (const p of this.players.values()) {
+      if (!p.ws) continue;
+      // Chaque téléphone reçoit en plus son état perso dans le jeu (« you »)
+      const you = this.game ? JSON.stringify(this.game.playerState(p.pid)) : 'null';
+      send(p.ws, `{"t":"room","room":${room},"you":${you}}`);
+    }
+  }
+
+  // ---- parties ----
+  async startGame() {
+    const g = gameById(this.selectedGame);
+    if (!g || !g.ready) throw new Error(`${g?.title ?? 'Ce jeu'} arrive bientôt !`);
+    if (this.game || this.starting) throw new Error('Une partie est déjà en cours');
+    if (this.connectedCount() < g.min) throw new Error(`Il faut au moins ${g.min} joueurs`);
+    this.starting = true;
+    try {
+      const game = await g.impl.create(this, this.options[g.id], {
+        changed: () => { if (this.game === game) this.broadcast(); },
+        finished: (results) => { if (this.game === game) this.endGame(results); },
+      });
+      if (this.closed) return;
+      this.game = game;
+      this.gameId = g.id;
+      this.gameStartedAt = Date.now();
+      this.phase = 'game';
+      game.start();
+      this.broadcast();
+    } finally {
+      this.starting = false;
+    }
+  }
+
+  endGame(results) {
+    if (!this.game) return;
+    this.game.stop();
+    // Les points de la partie s'ajoutent au score de la soirée
+    for (const r of results || []) {
+      const p = this.players.get(r.pid);
+      if (p) p.score += r.score;
+    }
+    db.gameSaved(this.partyId, this.gameId, this.gameStartedAt, results || []);
+    for (const p of this.players.values()) db.playerSeen(this.partyId, p.pid, p.name, p.score);
+    this.game = null;
+    this.gameId = null;
+    this.phase = 'lobby';
+    this.pickHost();
+    this.broadcast();
   }
 
   connectedCount() {
@@ -153,6 +209,7 @@ export class Room {
     this.players.set(p.pid, p);
     this.maxSeen = Math.max(this.maxSeen, this.players.size);
     if (!this.hostPid) this.hostPid = p.pid;
+    this.game?.onPlayerJoin?.(p);
     db.playerSeen(this.partyId, p.pid, p.name, 0);
     return p;
   }
@@ -163,6 +220,7 @@ export class Room {
     this.players.delete(pid);
     if (this.hostPid === pid) this.hostPid = null;
     this.pickHost();
+    this.game?.onPlayerGone?.(p);
   }
 
   findByToken(token) {
@@ -210,6 +268,7 @@ export class RoomManager {
   close(room) {
     if (room.closed) return;
     room.closed = true;
+    room.game?.stop();
     this.rooms.delete(room.code);
     const saves = [];
     for (const p of room.players.values()) {
