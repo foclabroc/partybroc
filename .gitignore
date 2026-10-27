@@ -1,7 +1,7 @@
 node_modules/
 server/.env
-web/
-web_new/
+/web/
+/web_new/
 *.log
 
 # Flutter

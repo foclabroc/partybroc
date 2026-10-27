@@ -42,5 +42,5 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 
 ## État
 
-- **0.1.0** (27/10/2026, pas encore poussé) : base `party`, serveur, salon TV + téléphone (pseudo, selfie/galerie ou emoji, couleur), hôte, expulsion, reconnexion. Les 5 jeux sont listés mais pas encore jouables.
+- **0.1.0** (27/10/2026, poussé sur main) : base `party`, serveur, salon TV + téléphone (pseudo, selfie/galerie ou emoji, couleur), hôte, expulsion, reconnexion. Les 5 jeux sont listés mais pas encore jouables.
 - Ordre proposé (à valider) : Quiz culture G → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée et score global.
