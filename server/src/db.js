@@ -54,6 +54,15 @@ export const db = {
     return r ? r.rows : null;
   },
 
+  // Contenu d'un jeu tiré au hasard (table pb.<table>, colonne id), sans ce qui a déjà servi ce soir
+  async randomContent(table, cols, n, excludeIds) {
+    if (!/^pb_[a-z_]+$/.test(table) || !/^[a-z_, ]+$/.test(cols)) throw new Error('table invalide');
+    const r = await q(`select id, ${cols} from pb.${table}
+                       where active and not (id = any($2::int[]))
+                       order by random() limit $1`, [n, excludeIds]);
+    return r ? r.rows : null;
+  },
+
   async gameSaved(partyId, game, startedAt, results) {
     if (!partyId) return;
     await q(`insert into pb.pb_games (party_id, game, started_at, ended_at, results)

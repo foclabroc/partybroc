@@ -1,14 +1,15 @@
 {
   "name": "partybroc-server",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "description": "Serveur temps réel de PartyBroc (salons, joueurs, jeux)",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/salon.test.js && node test/quiz.test.js",
-    "test:quiz": "node test/quiz.test.js"
+    "test": "node test/salon.test.js && node test/quiz.test.js && node test/jeux.test.js",
+    "test:quiz": "node test/quiz.test.js",
+    "test:jeux": "node test/jeux.test.js"
   },
   "engines": {
     "node": ">=20"

@@ -8,11 +8,13 @@ La TV ouvre un salon et affiche un code et un QR. Chaque joueur scanne avec son 
 
 | | Jeu | État |
 |---|---|---|
-| 🎨 | Dessin à deviner | à venir |
+| 🎨 | Dessin à deviner | ✅ 220 mots, dessin en direct sur la TV |
 | 🧠 | Quiz culture G | ✅ 150 questions, 10 catégories |
-| 👀 | Qui de nous ? | à venir |
-| ⚡ | Course de réflexes | à venir |
-| 😂 | Réponses drôles | à venir |
+| 👀 | Qui de nous ? | ✅ 80 questions, votes anonymes |
+| ⚡ | Course de réflexes | ✅ feu vert, marathon de taps, bonne couleur, compte vite |
+| 😂 | Réponses drôles | ✅ 70 phrases à compléter, votes |
+
+Musique originale (salon + jeu) sur l'écran TV, générée par `tools/musique.py` : remplaçable par d'autres `.ogg` dans `app/assets/music/`.
 
 ## Organisation
 

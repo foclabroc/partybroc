@@ -209,6 +209,13 @@ const handlers = {
     room.game.onMessage(p, m.m);
   },
 
+  // La TV peut aussi parler au jeu (ex. redemander le dessin après un rechargement)
+  tv_game_msg(ws, m) {
+    const { role, room } = ws.ctx;
+    if (role !== 'tv' || !room.game || !m.m || typeof m.m.t !== 'string') return;
+    room.game.onTvMessage?.(m.m);
+  },
+
   ping(ws) { send(ws, { t: 'pong' }); },
 };
 

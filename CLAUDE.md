@@ -26,9 +26,9 @@ Les salons vivent **en mémoire** du serveur (rapide). La base ne garde que l'hi
 
 ## Protocole WebSocket (JSON, champ `t`)
 
-TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`.
+TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`, `tv_game_msg {m}` (relayé à `game.onTvMessage`, ex. `drw_sync`).
 Téléphone → serveur : `join {code, name, emoji, color, photo(base64|'')}`, `resume {code, token}`, `profile {name?, emoji?, color?, photo?}`, `leave`, `ping`.
-Hôte seulement : `kick {pid}`, `select_game {game}`, `start_game`.
+Hôte seulement : `kick {pid}`, `select_game {game}`, `game_option {key, value}`, `start_game`.
 Serveur → clients : `tv_ok`, `joined {code, pid, token}`, `room {room}` (diffusé à tous à chaque changement), `profile_ok`, `error {code, msg}` (`no_room`, `expired`, `refused`, `bad_profile`, `not_ready`, `not_enough`), `kicked`, `closed`, `replaced`, `left`, `pong`.
 
 Règles du salon : code 4 consonnes, 10 joueurs max, pseudo 1–16 caractères unique (accents/majuscules ignorés), photo ≤ 60 Ko (JPEG/PNG/WebP vérifié par signature, l'appli envoie un JPEG 192×192). Le premier arrivé est l'hôte ; s'il se déconnecte, le suivant connecté prend la main. Joueur déconnecté : sa place est gardée 3 min (jeton dans le stockage du navigateur). Salon sans TV ni joueur : fermé après 15 min.
@@ -37,14 +37,18 @@ Règles du salon : code 4 consonnes, 10 joueurs max, pseudo 1–16 caractères u
 
 Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientôt », `options` = réglages de l'hôte). Modèle : `games/quiz.js`.
 - Classe avec `static async create(room, opts, hooks)` (charge le contenu en base), `start()`, `stop()`, `onMessage(player, m)`, `publicState()` (TV + tous), `playerState(pid)` (envoyé à chaque téléphone dans `you`), `onPlayerJoin(p)`, `onPlayerGone(p)`.
-- `hooks.changed()` → rediffuse l'état ; `hooks.finished(results)` → retour au salon, points ajoutés au score de la soirée, ligne dans `pb_games`.
+- `hooks.changed()` → rediffuse l'état ; `hooks.finished(results)` → retour au salon, points ajoutés au score de la soirée, ligne dans `pb_games` ; `hooks.emit(msg, exceptPid)` / `hooks.sendTo('tv'|pid, msg)` → messages directs hors état (traits de dessin `draw`, `dsn_close`, `dsn_found`).
+- Base commune `games/common.js` : `BaseGame` (minuteur, scores, gains, classement, podium, commandes hôte), `loadContent` (contenu en base sans répétition dans la soirée, `room.used[table]`), `cleanText`, `fold`, `levenshtein`, `fastTimings`.
+- Jeux : `quiz.js` (table `pb_quiz_questions`), `quidenous.js` (`pb_qdn_prompts`), `droles.js` (`pb_drl_prompts`), `reflexes.js` (pas de contenu), `dessin.js` (`pb_dessin_words`). Contenu : `sql/02_` à `05_`, générés par des scripts Python hors dépôt (on peut éditer directement les SQL).
 - Les téléphones envoient `game_msg {m: {...}}`, relayé au jeu. Messages hôte communs : `game_skip` (étape suivante / retour au salon depuis le podium), `game_end` (podium tout de suite).
 - **Jamais de réponse dans `publicState()` avant la révélation.**
-- Côté appli : `lib/games/<jeu>_state.dart` (lecture de l'état), `<jeu>_tv.dart`, `<jeu>_play.dart`, branchés dans `tv_screen.dart` et `play_screen.dart` selon `room.live['id']`.
+- Côté appli : quiz dans `quiz_state/quiz_tv/quiz_play.dart` ; les autres dans `lib/games/<jeu>_ui.dart` (classe `…Tv` et `…Play`, état lu via l'extension `Live` de `common_ui.dart`, widgets communs `TvIntro`, `TvHeader`, `TvWhoDone`, `TvGains`, `TvPodium`, `PhoneCenter`, `PhoneGameFrame`…). Branchés dans `tv_screen.dart` (`_game`) et `play_screen.dart` selon `room.live['id']`. Dessin : `draw_board.dart` (`DrawBoard` partagé, coordonnées 0–1000, 12 couleurs, resynchro automatique).
+- Réflexes : le temps de réaction est mesuré par le téléphone (`rt`), borné côté serveur à « écoulé + 300 ms » et ≥ 80 ms ; taps plafonnés à 18/s.
+- Musique (TV seulement) : `lib/music.dart` (audioplayers, boucles `assets/music/salon.ogg` et `jeu.ogg`, bouton Musique au salon, choix retenu ; dans un navigateur le son démarre au premier appui). Générée par `tools/musique.py`.
 
 ## Tests
 
-- `cd server && npm test` : salon (15 étapes) puis quiz (8 étapes, délais ×10 plus courts avec `PB_FAST=1`). Le quiz a besoin de `PB_DB_URL` (questions en base).
+- `cd server && npm test` : salon (15 étapes), quiz (8) et les 4 autres jeux (8), délais ÷10 avec `PB_FAST=1`. Les jeux ont besoin de `PB_DB_URL` (contenu en base, fichiers `sql/02` à `05` chargés).
 - `cd app && flutter analyze` : doit être propre.
 
 ## État
@@ -55,4 +59,5 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 - **Modes de dessin** (`web/flutter_bootstrap.js`) : `?rendu=auto` (défaut : WebAssembly + WebGL, logiciel si pas de WebGL), `?rendu=gl` (JavaScript + WebGL), `?rendu=cpu` (JavaScript, dessin logiciel, le plus sûr). Le choix est retenu par le navigateur (localStorage `pb_rendu`). `?debug=1` affiche le mode, WebGL et l'agent utilisateur en bas de l'écran. Pour la TV (WebView 142, ARM 32 bits, Android 11), le mode `auto` donne un écran violet vide, à tester en `cpu` et `gl`.
 - **0.3.0** (27/10/2026, poussé sur main) : appli Android TV « PartyBroc TV » (le navigateur de la TV de l'utilisateur, ARM 32 bits, n'affichait qu'un écran violet). Icône « PB » et bannière TV générées.
 - **0.3.1** (27/10/2026, pas encore poussé) : selfie pris **dans la page** (`lib/play/camera/selfie_web.dart`, getUserMedia, aperçu rond en miroir, bouton Prendre). Le bouton Selfie ouvrait l'appli photo externe et, sur Android, le navigateur était tué en arrière-plan (photo perdue). Repli sur image_picker si la caméra est refusée ou absente (`SelfieUnavailable`) ; stub hors web pour l'APK TV.
-- Ordre validé : Quiz culture G ✅ → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée.
+- **0.4.0** (28/10/2026, pas encore poussé) : les 4 autres jeux jouables (Qui de nous ?, Réponses drôles, Course de réflexes, Dessin à deviner) + musique originale sur la TV. SQL à lancer : `03_quidenous.sql`, `04_droles.sql`, `05_dessin.sql`. APK TV 0.4.0 (même clé).
+- Tous les jeux sont faits. Idées suivantes : soirée enchaînée (plusieurs jeux d'affilée, score global), sons d'ambiance.

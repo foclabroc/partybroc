@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/dessin_ui.dart';
+import '../games/draw_board.dart';
+import '../games/droles_ui.dart';
+import '../games/quidenous_ui.dart';
 import '../games/quiz_play.dart';
+import '../games/reflexes_ui.dart';
 import '../games/quiz_state.dart';
 import '../models.dart';
 import '../net.dart';
@@ -48,6 +53,7 @@ class _PlayScreenState extends State<PlayScreen> {
     super.initState();
     _sock = PbSocket(onOpen: _onOpen);
     _sub = _sock.messages.listen(_onMessage);
+    DrawBoard.instance.requestSync = () => _sock.send({'t': 'game_msg', 'm': {'t': 'drw_sync'}});
     _life = AppLifecycleListener(onResume: _sock.kick);
     _init();
   }
@@ -109,6 +115,10 @@ class _PlayScreenState extends State<PlayScreen> {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _you = m['you'] as Map<String, dynamic>?;
         });
+      case 'draw':
+        DrawBoard.instance.apply(m);
+      case 'dsn_close':
+        _toast('🔥 Chaud ! « ${m['text']} » est presque bon');
       case 'profile_ok':
         _toast('Profil mis à jour');
       case 'kicked':
@@ -235,14 +245,25 @@ class _PlayScreenState extends State<PlayScreen> {
       case _Step.lobby:
         final room = _room;
         if (room == null) return const Center(child: CircularProgressIndicator(color: Pb.pink));
-        if (room.live?['id'] == 'quiz') {
-          return QuizPlay(
-            room: room,
-            q: QuizState.fromJson(room.live!),
-            you: _you == null ? null : QuizYou.fromJson(_you!),
-            isHost: room.hostPid == _myPid,
-            send: _sock.send,
-          );
+        final live = room.live;
+        final host = room.hostPid == _myPid;
+        switch (live?['id']) {
+          case 'quiz':
+            return QuizPlay(
+              room: room,
+              q: QuizState.fromJson(live!),
+              you: _you == null ? null : QuizYou.fromJson(_you!),
+              isHost: host,
+              send: _sock.send,
+            );
+          case 'quidenous':
+            return QdnPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+          case 'droles':
+            return DrlPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+          case 'reflexes':
+            return RfxPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+          case 'dessin':
+            return DsnPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
         }
         return _LobbyView(
           room: room,

@@ -27,6 +27,9 @@ psql -U postgres -d postgres -v pw="MOT_DE_PASSE" -f 00_creer_base.sql
 $env:PGPASSWORD = "MOT_DE_PASSE"
 psql -h localhost -U partybroc -d party -f 01_schema.sql
 psql -h localhost -U partybroc -d party -f 02_quiz.sql
+psql -h localhost -U partybroc -d party -f 03_quidenous.sql
+psql -h localhost -U partybroc -d party -f 04_droles.sql
+psql -h localhost -U partybroc -d party -f 05_dessin.sql
 Remove-Item Env:PGPASSWORD
 ```
 

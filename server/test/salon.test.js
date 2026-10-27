@@ -124,8 +124,8 @@ try {
   b2.send({ t: 'select_game', game: 'dessin' });
   room = (await tv.wait((m) => m.t === 'room' && m.room.selectedGame === 'dessin')).room;
   b2.send({ t: 'start_game' });
-  assert.equal((await b2.wait('error')).code, 'not_ready');
-  step("Choix du jeu par l'hôte, jeu pas encore prêt bien signalé");
+  assert.equal((await b2.wait('error')).code, 'not_enough');
+  step("Choix du jeu par l'hôte, pas assez de joueurs pour le Dessin bien signalé");
 
   // Expulsion
   const c = client(); await c.open();

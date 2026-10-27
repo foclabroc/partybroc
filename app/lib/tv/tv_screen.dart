@@ -4,9 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/dessin_ui.dart';
+import '../games/draw_board.dart';
+import '../games/droles_ui.dart';
+import '../games/quidenous_ui.dart';
 import '../games/quiz_state.dart';
+import '../games/reflexes_ui.dart';
 import '../games/quiz_tv.dart';
 import '../models.dart';
+import '../music.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
@@ -32,9 +38,14 @@ class _TvScreenState extends State<TvScreen> {
     super.initState();
     _sock = PbSocket(onOpen: _hello);
     _sub = _sock.messages.listen(_onMessage);
+    DrawBoard.instance.requestSync = () => _sock.send({'t': 'tv_game_msg', 'm': {'t': 'drw_sync'}});
     SharedPreferences.getInstance().then((p) {
       _prefs = p;
       _sock.connect();
+    });
+    Music.instance.init().then((_) {
+      if (mounted) setState(() {});
+      Music.instance.play('salon');
     });
   }
 
@@ -56,17 +67,34 @@ class _TvScreenState extends State<TvScreen> {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _error = null;
         });
+        // Musique : « jeu » pendant une partie, « salon » au salon et au podium
+        final live = _room!.live;
+        Music.instance.play(live != null && live['phase'] != 'podium' ? 'jeu' : 'salon');
       case 'closed':
         // Salon fermé côté serveur : on en ouvre un neuf
         _prefs?.remove('tv_code');
         _prefs?.remove('tv_token');
         setState(() => _room = null);
         _hello(_sock);
+      case 'draw':
+        DrawBoard.instance.apply(m);
       case 'replaced':
         setState(() => _error = 'Ce salon est maintenant affiché sur un autre écran.');
       case 'error':
         setState(() => _error = m['msg'] as String?);
     }
+  }
+
+  Widget _game(RoomView room) {
+    final live = room.live!;
+    return switch (live['id']) {
+      'quiz' => QuizTv(room: room, q: QuizState.fromJson(live)),
+      'quidenous' => QdnTv(room: room, live: live),
+      'droles' => DrlTv(room: room, live: live),
+      'reflexes' => RfxTv(room: room, live: live),
+      'dessin' => DsnTv(room: room, live: live),
+      _ => const SizedBox.shrink(),
+    };
   }
 
   void _newRoom() {
@@ -84,6 +112,21 @@ class _TvScreenState extends State<TvScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Dans un navigateur, le son ne démarre qu'après un premier appui
+    return Listener(
+      onPointerDown: (_) => Music.instance.unlock(),
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: (_, _) {
+          Music.instance.unlock();
+          return KeyEventResult.ignored;
+        },
+        child: _scaffold(),
+      ),
+    );
+  }
+
+  Widget _scaffold() {
     return Scaffold(
       body: PartyBackground(
         child: Center(
@@ -94,8 +137,8 @@ class _TvScreenState extends State<TvScreen> {
               child: Stack(children: [
                 if (_room == null)
                   Center(child: _waiting())
-                else if (_room!.live?['id'] == 'quiz')
-                  QuizTv(room: _room!, q: QuizState.fromJson(_room!.live!))
+                else if (_room!.live != null)
+                  _game(_room!)
                 else
                   _Lobby(room: _room!, onNewRoom: _newRoom),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
@@ -146,6 +189,8 @@ class _Lobby extends StatelessWidget {
         Row(children: [
           const PbLogo(size: 64),
           const Spacer(),
+          const _MusicButton(),
+          const SizedBox(width: 20),
           TextButton.icon(
             onPressed: onNewRoom,
             icon: const Icon(Icons.refresh_rounded, size: 30, color: Pb.muted),
@@ -404,6 +449,29 @@ class _NetBadge extends StatelessWidget {
           child: Text('Connexion au serveur…', style: Pb.t(28, weight: 600)),
         );
       },
+    );
+  }
+}
+
+/// Bouton son de la TV (accessible à la télécommande)
+class _MusicButton extends StatefulWidget {
+  const _MusicButton();
+
+  @override
+  State<_MusicButton> createState() => _MusicButtonState();
+}
+
+class _MusicButtonState extends State<_MusicButton> {
+  @override
+  Widget build(BuildContext context) {
+    final muted = Music.instance.muted;
+    return TextButton.icon(
+      onPressed: () async {
+        await Music.instance.toggle();
+        if (mounted) setState(() {});
+      },
+      icon: Icon(muted ? Icons.music_off_rounded : Icons.music_note_rounded, size: 30, color: Pb.muted),
+      label: Text(muted ? 'Musique coupée' : 'Musique', style: Pb.t(26, color: Pb.muted)),
     );
   }
 }

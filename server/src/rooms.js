@@ -101,6 +101,7 @@ export class Room {
     this.gameStartedAt = 0;
     this.starting = false;
     this.usedQuiz = new Set();      // questions déjà posées ce soir
+    this.used = {};                 // contenu déjà servi ce soir, par table (Set d'id)
     // Réglages choisis par l'hôte, par jeu
     this.options = Object.fromEntries(GAMES.map((g) => [g.id,
       Object.fromEntries(Object.entries(g.options || {}).map(([k, o]) => [k, o.def]))]));
@@ -135,6 +136,17 @@ export class Room {
     }
   }
 
+  emit(msg, exceptPid) {
+    const s = JSON.stringify(msg);
+    if (this.tv) send(this.tv, s);
+    for (const p of this.players.values()) if (p.ws && p.pid !== exceptPid) send(p.ws, s);
+  }
+
+  sendTo(target, msg) {
+    const ws = target === 'tv' ? this.tv : this.players.get(target)?.ws;
+    if (ws) send(ws, msg);
+  }
+
   // ---- parties ----
   async startGame() {
     const g = gameById(this.selectedGame);
@@ -146,6 +158,9 @@ export class Room {
       const game = await g.impl.create(this, this.options[g.id], {
         changed: () => { if (this.game === game) this.broadcast(); },
         finished: (results) => { if (this.game === game) this.endGame(results); },
+        // Message direct (ex. traits de dessin) : à tout le monde, ou à 'tv' / un pid
+        emit: (msg, except) => { if (this.game === game) this.emit(msg, except); },
+        sendTo: (target, msg) => { if (this.game === game) this.sendTo(target, msg); },
       });
       if (this.closed) return;
       this.game = game;
