@@ -20,8 +20,28 @@
     const c = document.createElement('canvas');
     webgl = !!(c.getContext('webgl2') || c.getContext('webgl'));
   } catch (e) { webgl = false; }
-  const config = webgl ? {} : { renderer: 'canvaskit', canvasKitForceCpuOnly: true };
-  if (!webgl) console.warn('PartyBroc : pas de WebGL, rendu logiciel');
+  // Mode de dessin forcé par l'adresse (?rendu=cpu|gl|auto), retenu par ce navigateur :
+  //   auto : WebAssembly + WebGL (le plus rapide), logiciel si pas de WebGL
+  //   gl   : version JavaScript + WebGL (pour les WebGL capricieux)
+  //   cpu  : version JavaScript, dessin logiciel sans WebGL (le plus sûr)
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  const asked = new URLSearchParams(location.search).get('rendu');
+  if (asked === 'cpu' || asked === 'gl' || asked === 'auto') store.set('pb_rendu', asked);
+  let mode = store.get('pb_rendu') || 'auto';
+  if (mode === 'auto' && !webgl) mode = 'cpu';
+  const config = mode === 'cpu' ? { renderer: 'canvaskit', canvasKitForceCpuOnly: true }
+               : mode === 'gl'  ? { renderer: 'canvaskit' }
+               : {};
+  console.info('PartyBroc : rendu ' + mode + (webgl ? '' : ' (pas de WebGL)'));
+
+  // ?debug=1 : affiche les infos techniques en bas de l'écran
+  if (new URLSearchParams(location.search).get('debug') === '1') {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:14px monospace;color:#fff;background:rgba(0,0,0,.7);padding:6px 10px;border-radius:6px;max-width:95vw';
+    d.textContent = 'rendu=' + mode + ' webgl=' + webgl + ' | ' + navigator.userAgent;
+    document.body.appendChild(d);
+  }
 
   const slow = setTimeout(() => fail('Le chargement prend trop de temps (plus de 30 s).'), 30000);
   window.addEventListener('flutter-first-frame', () => {
