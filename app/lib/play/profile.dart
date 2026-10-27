@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import 'camera/selfie.dart';
 
 /// Profil du joueur, gardé sur son téléphone pour la prochaine soirée.
 class Profile {
@@ -51,6 +52,16 @@ class Profile {
   Profile copy() => Profile(name: name, emoji: emoji, color: color, photo: photo);
 }
 
+/// Selfie : caméra dans la page si possible, sinon l'appli photo du téléphone.
+Future<Uint8List?> takeProfileSelfie(BuildContext context) async {
+  try {
+    final bytes = await takeSelfie(context);
+    return bytes == null ? null : squarePhoto(bytes);
+  } on SelfieUnavailable {
+    return pickProfilePhoto(ImageSource.camera);
+  }
+}
+
 /// Prend une photo (ou la choisit), la recadre en carré et la réduit à 192 px.
 Future<Uint8List?> pickProfilePhoto(ImageSource source) async {
   final file = await ImagePicker().pickImage(
@@ -61,7 +72,12 @@ Future<Uint8List?> pickProfilePhoto(ImageSource source) async {
     preferredCameraDevice: CameraDevice.front,
   );
   if (file == null) return null;
-  final decoded = img.decodeImage(await file.readAsBytes());
+  return squarePhoto(await file.readAsBytes());
+}
+
+/// Recadre en carré centré et réduit à 192 px (JPEG ~10 Ko)
+Uint8List squarePhoto(Uint8List bytes) {
+  final decoded = img.decodeImage(bytes);
   if (decoded == null) throw Exception('Image illisible');
   final square = img.copyResizeCropSquare(img.bakeOrientation(decoded), size: 192);
   return Uint8List.fromList(img.encodeJpg(square, quality: 80));
@@ -86,7 +102,7 @@ class _ProfileEditorState extends State<ProfileEditor> {
   Future<void> _pick(ImageSource src) async {
     setState(() => _busy = true);
     try {
-      final bytes = await pickProfilePhoto(src);
+      final bytes = src == ImageSource.camera ? await takeProfileSelfie(context) : await pickProfilePhoto(src);
       if (bytes != null) p.photo = bytes;
     } catch (_) {
       if (mounted) {
