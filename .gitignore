@@ -1,0 +1,12 @@
+node_modules/
+server/.env
+web/
+web_new/
+*.log
+
+# Flutter
+app/build/
+app/.dart_tool/
+app/.flutter-plugins-dependencies
+app/.idea/
+*.iml

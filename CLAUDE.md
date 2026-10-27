@@ -1,0 +1,46 @@
+# PartyBroc : mémo pour Claude
+
+Appli de jeux de soirée multijoueur : la TV affiche (navigateur, `/tv`), chaque joueur joue sur son téléphone (navigateur, `/play`, via QR). Tout en français.
+
+## Règles de travail
+
+- **Ne jamais pousser sans un « pousse » explicite** : montrer les changements, attendre le feu vert.
+- SQL : fichiers **relançables** (`IF NOT EXISTS`, `CREATE OR REPLACE`…) dans `sql/`, numérotés (`02_…`). Les donner **avant** de pousser le code qui en dépend ; l'utilisateur les lance lui-même.
+- Après chaque push réussi : mettre à jour ce fichier (section « État »).
+- Demander avant de faire une maquette HTML.
+- Les photos de profil ne vont **jamais** en base (mémoire du serveur seulement).
+
+## Architecture
+
+| Partie | Techno | Détails |
+|---|---|---|
+| `app/` | Flutter web (`--wasm`, repli JS auto) | une seule appli : `/tv`, `/play?code=`, `/` accueil. Police Fredoka embarquée. |
+| `server/` | Node 20+ (ES modules), `ws`, `pg` | sert le site (`PB_WEB_DIR`), les photos (`/a/CODE/pid/v`), `/health`, WebSocket `/ws`. Écoute 127.0.0.1:4100. |
+| `sql/` | PostgreSQL 17 | base `party`, rôle `partybroc`, schéma `pb` (search_path par défaut du rôle). |
+| Prod | PC serveur maison Windows | `D:\partybroc`, service NSSM `partybroc`, Caddy → `party.foclabroc.duckdns.org`. Même PC que Pixel Trade mais tout est séparé. |
+| CI | `.github/workflows/web.yml` | compile le site à chaque push sur main → release `web-latest` (`partybroc-web.zip`). `deploy.ps1` sur le serveur le récupère. |
+
+Les salons vivent **en mémoire** du serveur (rapide). La base ne garde que l'historique : `pb_parties`, `pb_party_players`, `pb_games`. Si la base tombe, le jeu continue.
+
+## Protocole WebSocket (JSON, champ `t`)
+
+TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`.
+Téléphone → serveur : `join {code, name, emoji, color, photo(base64|'')}`, `resume {code, token}`, `profile {name?, emoji?, color?, photo?}`, `leave`, `ping`.
+Hôte seulement : `kick {pid}`, `select_game {game}`, `start_game`.
+Serveur → clients : `tv_ok`, `joined {code, pid, token}`, `room {room}` (diffusé à tous à chaque changement), `profile_ok`, `error {code, msg}` (`no_room`, `expired`, `refused`, `bad_profile`, `not_ready`, `not_enough`), `kicked`, `closed`, `replaced`, `left`, `pong`.
+
+Règles du salon : code 4 consonnes, 10 joueurs max, pseudo 1–16 caractères unique (accents/majuscules ignorés), photo ≤ 60 Ko (JPEG/PNG/WebP vérifié par signature, l'appli envoie un JPEG 192×192). Le premier arrivé est l'hôte ; s'il se déconnecte, le suivant connecté prend la main. Joueur déconnecté : sa place est gardée 3 min (jeton dans le stockage du navigateur). Salon sans TV ni joueur : fermé après 15 min.
+
+## Ajouter un jeu
+
+Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientôt »). Un jeu sera un module `create(room)` qui reçoit les messages des joueurs et renvoie un état public (TV) et un état par joueur (téléphone). `start_game` est le point d'entrée.
+
+## Tests
+
+- `cd server && npm test` : salon de bout en bout (15 étapes). Avec `PB_DB_URL` pour tester l'historique.
+- `cd app && flutter analyze` : doit être propre.
+
+## État
+
+- **0.1.0** (27/10/2026, pas encore poussé) : base `party`, serveur, salon TV + téléphone (pseudo, selfie/galerie ou emoji, couleur), hôte, expulsion, reconnexion. Les 5 jeux sont listés mais pas encore jouables.
+- Ordre proposé (à valider) : Quiz culture G → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée et score global.
