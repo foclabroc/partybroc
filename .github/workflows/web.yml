@@ -31,7 +31,7 @@ jobs:
         working-directory: app
         run: |
           flutter pub get
-          flutter build web --release --wasm
+          flutter build web --release --wasm --no-web-resources-cdn
           cd build/web && zip -qr ../../../partybroc-web.zip .
 
       - name: Publier dans la release web-latest

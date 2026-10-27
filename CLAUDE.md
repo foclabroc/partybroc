@@ -14,7 +14,7 @@ Appli de jeux de soirée multijoueur : la TV affiche (navigateur, `/tv`), chaque
 
 | Partie | Techno | Détails |
 |---|---|---|
-| `app/` | Flutter web (`--wasm`, repli JS auto) | une seule appli : `/tv`, `/play?code=`, `/` accueil. Police Fredoka embarquée. |
+| `app/` | Flutter web (`--wasm --no-web-resources-cdn`, repli JS auto) | une seule appli : `/tv`, `/play?code=`, `/` accueil. Police Fredoka embarquée. |
 | `server/` | Node 20+ (ES modules), `ws`, `pg` | sert le site (`PB_WEB_DIR`), les photos (`/a/CODE/pid/v`), `/health`, WebSocket `/ws`. Écoute 127.0.0.1:4100. |
 | `sql/` | PostgreSQL 17 | base `party`, rôle `partybroc`, schéma `pb` (search_path par défaut du rôle). |
 | Prod | PC serveur maison Windows | `D:\partybroc`, service NSSM `partybroc`, Caddy → `party.foclabroc.duckdns.org`. Même PC que Pixel Trade mais tout est séparé. |
@@ -49,4 +49,5 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 
 - **0.1.0** (27/10/2026, poussé sur main) : base `party`, serveur, salon TV + téléphone (pseudo, selfie/galerie ou emoji, couleur), hôte, expulsion, reconnexion. Les 5 jeux sont listés mais pas encore jouables.
 - **0.2.0** (27/10/2026, poussé sur main) : Quiz culture G jouable (`sql/02_quiz.sql`, 150 questions / 10 catégories). 5, 10, 15 ou 20 questions, 20 s chacune, points = 500 + rapidité (jusqu'à 500) + série (100 par bonne réponse d'affilée, 300 max). Pas de question répétée dans la même soirée. Score de soirée affiché au salon.
+- **0.2.1** (27/10/2026, pas encore poussé) : démarrage plus robuste. CanvasKit servi par notre serveur (`--no-web-resources-cdn`, plus de gstatic), plus de service worker, écran « Chargement… » dans `index.html` avec un message clair si le navigateur ne peut pas lancer l'appli (sans WebAssembly ou WebGL, erreur, plus de 30 s) et l'agent utilisateur affiché.
 - Ordre validé : Quiz culture G ✅ → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée.

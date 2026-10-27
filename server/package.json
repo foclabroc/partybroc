@@ -1,6 +1,6 @@
 {
   "name": "partybroc-server",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Serveur temps réel de PartyBroc (salons, joueurs, jeux)",
   "type": "module",

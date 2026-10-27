@@ -33,6 +33,6 @@ cd server && npm install && npm start          # http://127.0.0.1:4100
 npm test                                        # test du salon de bout en bout
 
 # appli
-cd app && flutter build web --wasm              # le serveur sert app/build/web
+cd app && flutter build web --wasm --no-web-resources-cdn   # le serveur sert app/build/web
 # ou contre un autre serveur :  /tv?server=https://party.foclabroc.duckdns.org
 ```

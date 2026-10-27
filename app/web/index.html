@@ -33,15 +33,13 @@
   <title>PartyBroc</title>
   <link rel="manifest" href="manifest.json">
 </head>
-<body style="background:#17102B">
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+<body style="background:#17102B;margin:0">
+  <!-- Écran de chargement (retiré dès que l'appli s'affiche) -->
+  <div id="pb-loading" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;color:#F7F2FF;text-align:center;padding:24px">
+    <div style="font-size:42px;font-weight:bold">Party<span style="color:#FF4FA3">Broc</span> 🎉</div>
+    <div style="margin-top:12px;color:#B3A6D9;font-size:18px">Chargement…</div>
+    <div id="pb-status" style="display:none;margin-top:24px;max-width:720px;color:#FFB3B3;font-size:18px;line-height:1.4"></div>
+  </div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
