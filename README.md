@@ -23,7 +23,7 @@ sql/      scripts PostgreSQL relançables (base « party »)
 docs/     installation sur le serveur maison
 ```
 
-Installation : [docs/INSTALL.md](docs/INSTALL.md).
+Installation : [docs/INSTALL.md](docs/INSTALL.md). Appli Android TV : [docs/TV.md](docs/TV.md).
 
 ## Développement
 

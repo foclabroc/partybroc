@@ -8,6 +8,7 @@ Appli de jeux de soirée multijoueur : la TV affiche (navigateur, `/tv`), chaque
 - SQL : fichiers **relançables** (`IF NOT EXISTS`, `CREATE OR REPLACE`…) dans `sql/`, numérotés (`02_…`). Les donner **avant** de pousser le code qui en dépend ; l'utilisateur les lance lui-même.
 - Après chaque push réussi : mettre à jour ce fichier (section « État »).
 - Demander avant de faire une maquette HTML.
+- **Ne jamais commiter la clé de signature Android** (`*.jks`, `key.properties`, déjà dans `.gitignore`).
 - Les photos de profil ne vont **jamais** en base (mémoire du serveur seulement).
 
 ## Architecture
@@ -19,6 +20,7 @@ Appli de jeux de soirée multijoueur : la TV affiche (navigateur, `/tv`), chaque
 | `sql/` | PostgreSQL 17 | base `party`, rôle `partybroc`, schéma `pb` (search_path par défaut du rôle). |
 | Prod | PC serveur maison Windows | `D:\partybroc`, service NSSM `partybroc`, Caddy → `party.foclabroc.duckdns.org`. Même PC que Pixel Trade mais tout est séparé. |
 | CI | `.github/workflows/web.yml` | compile le site à chaque push sur main → release `web-latest` (`partybroc-web.zip`). `deploy.ps1` sur le serveur le récupère. |
+| Appli TV | `app/android`, `apk.yml` | **PartyBroc TV** : la même appli Flutter compilée en APK Android TV (`com.foclabroc.partybroc`, leanback, paysage, écran toujours allumé). Sur Android, `main.dart` ouvre directement `TvScreen` et `serverBase()` vaut `kServer` (`--dart-define=PB_SERVER`, défaut `https://party.foclabroc.duckdns.org`). `apk.yml` → release `tv-latest` (`partybroc-tv.apk`), seulement si les secrets `ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` existent. Installation : `docs/TV.md`. |
 
 Les salons vivent **en mémoire** du serveur (rapide). La base ne garde que l'historique : `pb_parties`, `pb_party_players`, `pb_games`. Si la base tombe, le jeu continue.
 
@@ -51,4 +53,5 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 - **0.2.0** (27/10/2026, poussé sur main) : Quiz culture G jouable (`sql/02_quiz.sql`, 150 questions / 10 catégories). 5, 10, 15 ou 20 questions, 20 s chacune, points = 500 + rapidité (jusqu'à 500) + série (100 par bonne réponse d'affilée, 300 max). Pas de question répétée dans la même soirée. Score de soirée affiché au salon.
 - **0.2.1** (27/10/2026, poussé sur main) : démarrage plus robuste. CanvasKit servi par notre serveur (`--no-web-resources-cdn`, plus de gstatic), plus de service worker, écran « Chargement… » dans `index.html` avec un message clair si le navigateur ne peut pas lancer l'appli (sans WebAssembly, erreur, plus de 30 s) et l'agent utilisateur affiché. Sans WebGL (fréquent sur les navigateurs de TV), rendu logiciel automatique (`renderer: canvaskit`, `canvasKitForceCpuOnly`).
 - **Modes de dessin** (`web/flutter_bootstrap.js`) : `?rendu=auto` (défaut : WebAssembly + WebGL, logiciel si pas de WebGL), `?rendu=gl` (JavaScript + WebGL), `?rendu=cpu` (JavaScript, dessin logiciel, le plus sûr). Le choix est retenu par le navigateur (localStorage `pb_rendu`). `?debug=1` affiche le mode, WebGL et l'agent utilisateur en bas de l'écran. Pour la TV (WebView 142, ARM 32 bits, Android 11), le mode `auto` donne un écran violet vide, à tester en `cpu` et `gl`.
+- **0.3.0** (27/10/2026, pas encore poussé) : appli Android TV « PartyBroc TV » (le navigateur de la TV de l'utilisateur, ARM 32 bits, n'affichait qu'un écran violet). Icône « PB » et bannière TV générées.
 - Ordre validé : Quiz culture G ✅ → Qui de nous ? → Réponses drôles → Course de réflexes → Dessin à deviner. Puis soirée enchaînée.

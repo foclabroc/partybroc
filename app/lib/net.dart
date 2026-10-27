@@ -4,9 +4,13 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// Adresse du serveur : même machine que le site, sauf si ?server=… est donné
-/// (pratique pour tester l'appli en local contre le vrai serveur).
+/// Serveur utilisé par l'appli Android TV (modifiable au build : --dart-define=PB_SERVER=…)
+const kServer = String.fromEnvironment('PB_SERVER', defaultValue: 'https://party.foclabroc.duckdns.org');
+
+/// Adresse du serveur : sur le web, même machine que le site, sauf si ?server=… est donné
+/// (pratique pour tester l'appli en local contre le vrai serveur). En appli native : kServer.
 Uri serverBase() {
+  if (!kIsWeb) return Uri.parse(kServer);
   final b = Uri.base;
   final forced = b.queryParameters['server'];
   if (forced != null && forced.isNotEmpty) return Uri.parse(forced);

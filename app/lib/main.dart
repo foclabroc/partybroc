@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
@@ -19,6 +20,15 @@ class PartyBrocApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Appli Android TV : directement l'écran de la TV
+    if (!kIsWeb) {
+      return MaterialApp(
+        title: 'PartyBroc TV',
+        debugShowCheckedModeBanner: false,
+        theme: Pb.theme(),
+        home: const TvScreen(),
+      );
+    }
     final uri = Uri.base;
     final path = uri.path.replaceAll(RegExp(r'/+$'), '');
     final code = uri.queryParameters['code'];

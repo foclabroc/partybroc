@@ -1,0 +1,74 @@
+# Compile l'appli Android TV (PartyBroc TV) et la publie dans la release « tv-latest »
+# (partybroc-tv.apk). Elle ne tourne que si la clé de signature est dans les
+# secrets du dépôt (Settings → Secrets and variables → Actions) :
+#   ANDROID_KEYSTORE_BASE64  le fichier partybroc-tv.jks encodé en base64
+#   ANDROID_KEYSTORE_PASSWORD  son mot de passe (alias : partybroc)
+# Toujours la même clé, sinon la TV refuse la mise à jour.
+name: apk
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/apk.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      KEYSTORE_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    steps:
+      - name: Clé de signature présente ?
+        id: key
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PW" ]; then
+            echo "Secrets ANDROID_KEYSTORE_* absents : APK non compilé." >> "$GITHUB_STEP_SUMMARY"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.key.outputs.ok == 'true'
+
+      - uses: actions/setup-java@v4
+        if: steps.key.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.key.outputs.ok == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Compiler
+        if: steps.key.outputs.ok == 'true'
+        working-directory: app
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/partybroc-tv.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=partybroc\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/partybroc-tv.jks" "$KEYSTORE_PW" "$KEYSTORE_PW" > android/key.properties
+          flutter pub get
+          flutter build apk --release --target-platform android-arm,android-arm64
+          cp build/app/outputs/flutter-apk/app-release.apk ../partybroc-tv.apk
+          rm -f android/key.properties "$RUNNER_TEMP/partybroc-tv.jks"
+
+      - name: Publier dans la release tv-latest
+        if: steps.key.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view tv-latest >/dev/null 2>&1 || \
+            gh release create tv-latest --title "Appli Android TV (dernière version)" --notes "Construite automatiquement depuis main." --latest=false
+          gh release upload tv-latest partybroc-tv.apk --clobber
+          gh release edit tv-latest --notes "Construite automatiquement depuis main (${GITHUB_SHA::7})."

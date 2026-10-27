@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fond du démarrage : la nuit violette de PartyBroc (pas de flash blanc) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><color android:color="#17102B" /></item>
+</layer-list>
