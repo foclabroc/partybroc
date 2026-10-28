@@ -21,6 +21,16 @@ Lancer sans passer par le launcher :
 adb shell monkey -p com.foclabroc.partybroc -c android.intent.category.LEANBACK_LAUNCHER 1
 ```
 
+## Mise à jour automatique (depuis la 0.5.0)
+
+L'appli vérifie au démarrage, au retour sur l'appli et toutes les 6 heures s'il existe une version plus récente dans la release **`tv-latest`** (fichier `tv-version.json`). Si oui, au salon (jamais pendant une partie) :
+
+1. « Nouvelle version x.y.z » → **Mettre à jour** (ou bouton **Mise à jour** en haut du salon) ;
+2. la première fois seulement : Android demande d'autoriser « PartyBroc TV » à installer des applis (« Sources inconnues ») → **Ouvrir les réglages**, autoriser, revenir avec Retour ;
+3. téléchargement, puis l'installateur Android s'ouvre → **Installer** (cette confirmation est obligatoire sur Android, impossible de l'éviter sans être une appli système).
+
+Pour que ça marche, GitHub doit pouvoir compiler et signer l'APK : il faut les deux secrets décrits plus bas. Ensuite, chaque push qui touche `app/` publie la nouvelle version.
+
 ## Où trouver l'APK
 
 - Release **`tv-latest`** du dépôt (`partybroc-tv.apk`), recompilée à chaque push qui touche `app/`, une fois la clé de signature ajoutée dans les secrets (voir plus bas).

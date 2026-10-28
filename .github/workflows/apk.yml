@@ -62,6 +62,13 @@ jobs:
           flutter build apk --release --target-platform android-arm,android-arm64
           cp build/app/outputs/flutter-apk/app-release.apk ../partybroc-tv.apk
           rm -f android/key.properties "$RUNNER_TEMP/partybroc-tv.jks"
+          # Fichier lu par l'appli TV pour savoir si une mise à jour existe
+          VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*//')
+          NAME=${VER%%+*}; CODE=${VER##*+}
+          NOTES=$(git log -1 --pretty=%s | head -c 300)
+          jq -n --arg name "$NAME" --argjson code "$CODE" --arg notes "$NOTES" \
+            '{versionName: $name, versionCode: $code, notes: $notes}' > ../tv-version.json
+          cat ../tv-version.json
 
       - name: Publier dans la release tv-latest
         if: steps.key.outputs.ok == 'true'
@@ -70,5 +77,7 @@ jobs:
         run: |
           gh release view tv-latest >/dev/null 2>&1 || \
             gh release create tv-latest --title "Appli Android TV (dernière version)" --notes "Construite automatiquement depuis main." --latest=false
+          # l'APK d'abord, le fichier de version ensuite (jamais de version annoncée sans son APK)
           gh release upload tv-latest partybroc-tv.apk --clobber
+          gh release upload tv-latest tv-version.json --clobber
           gh release edit tv-latest --notes "Construite automatiquement depuis main (${GITHUB_SHA::7})."

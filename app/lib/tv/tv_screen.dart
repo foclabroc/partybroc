@@ -18,6 +18,7 @@ import '../music.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import 'update/update.dart';
 
 /// Écran de la TV : code + QR à gauche, joueurs à droite, jeux en bas.
 /// Tout est dessiné sur une toile 1920×1080 mise à l'échelle de l'écran.
@@ -36,6 +37,9 @@ class _TvScreenState extends State<TvScreen> {
   String? _error;
   late final AppLifecycleListener _life;
   bool _dialog = false;
+  TvUpdate? _update; // nouvelle version de l'appli TV disponible
+  Timer? _updateTimer;
+  DateTime _lastCheck = DateTime(2000);
 
   @override
   void initState() {
@@ -46,8 +50,12 @@ class _TvScreenState extends State<TvScreen> {
       onResume: () {
         Music.instance.resume();
         _sock.kick();
+        _checkUpdate();
       },
     );
+    // Mise à jour de l'appli TV : au démarrage puis toutes les 6 heures
+    Future.delayed(const Duration(seconds: 5), _checkUpdate);
+    _updateTimer = Timer.periodic(const Duration(hours: 6), (_) => _checkUpdate(force: true));
     _sock = PbSocket(onOpen: _hello);
     _sub = _sock.messages.listen(_onMessage);
     DrawBoard.instance.requestSync = () => _sock.send({'t': 'tv_game_msg', 'm': {'t': 'drw_sync'}});
@@ -118,9 +126,31 @@ class _TvScreenState extends State<TvScreen> {
   @override
   void dispose() {
     _life.dispose();
+    _updateTimer?.cancel();
     _sub?.cancel();
     _sock.dispose();
     super.dispose();
+  }
+
+  // ---------------------------------------------------------- mise à jour de l'appli TV
+  Future<void> _checkUpdate({bool force = false}) async {
+    if (kIsWeb) return;
+    if (!force && DateTime.now().difference(_lastCheck) < const Duration(minutes: 10)) return;
+    _lastCheck = DateTime.now();
+    final u = await checkTvUpdate();
+    if (!mounted || u == null) return;
+    final isNew = _update?.versionCode != u.versionCode;
+    setState(() => _update = u);
+    // On le propose tout de suite, mais jamais pendant une partie
+    if (isNew && _room?.live == null) _offerUpdate();
+  }
+
+  Future<void> _offerUpdate() async {
+    final u = _update;
+    if (u == null || _dialog || !mounted) return;
+    _dialog = true;
+    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(update: u));
+    _dialog = false;
   }
 
   // Touche Retour de la télécommande
@@ -187,7 +217,7 @@ class _TvScreenState extends State<TvScreen> {
                 else if (_room!.live != null)
                   _game(_room!)
                 else
-                  _Lobby(room: _room!, onNewRoom: _newRoom, onQuit: _onBack),
+                  _Lobby(room: _room!, onNewRoom: _newRoom, onQuit: _onBack, onUpdate: _update == null ? null : _offerUpdate),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
                 if (!kIsWeb && _room?.live != null)
                   Positioned(
@@ -226,10 +256,11 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.room, required this.onNewRoom, required this.onQuit});
+  const _Lobby({required this.room, required this.onNewRoom, required this.onQuit, this.onUpdate});
   final RoomView room;
   final VoidCallback onNewRoom;
   final VoidCallback onQuit;
+  final VoidCallback? onUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -243,6 +274,14 @@ class _Lobby extends StatelessWidget {
         Row(children: [
           const PbLogo(size: 64),
           const Spacer(),
+          if (onUpdate != null) ...[
+            FilledButton.icon(
+              onPressed: onUpdate,
+              icon: const Icon(Icons.system_update_rounded, size: 28),
+              label: Text('Mise à jour', style: Pb.t(24, weight: 600)),
+            ),
+            const SizedBox(width: 20),
+          ],
           const _MusicButton(),
           const SizedBox(width: 20),
           if (!kIsWeb) ...[
@@ -560,6 +599,101 @@ class _TvDialog extends StatelessWidget {
           child: Text(yes),
         ),
       ],
+    );
+  }
+}
+
+/// Proposer, télécharger et lancer l'installation de la nouvelle version
+class _UpdateDialog extends StatefulWidget {
+  const _UpdateDialog({required this.update});
+  final TvUpdate update;
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> with WidgetsBindingObserver {
+  double? _progress; // null = pas encore lancé
+  String? _error;
+  bool _needPermission = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Retour des réglages « Sources inconnues » : on relance tout seul
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _needPermission) _go();
+  }
+
+  Future<void> _go() async {
+    setState(() {
+      _progress = 0;
+      _error = null;
+      _needPermission = false;
+    });
+    try {
+      await installTvUpdate(widget.update, (p) {
+        if (mounted) setState(() => _progress = p);
+      });
+      // L'installateur Android est ouvert : il remplace l'appli puis la relance
+      if (mounted) Navigator.pop(context);
+    } on NeedInstallPermission {
+      if (mounted) setState(() { _progress = null; _needPermission = true; });
+    } catch (e) {
+      if (mounted) setState(() { _progress = null; _error = '$e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final u = widget.update;
+    final busy = _progress != null;
+    return AlertDialog(
+      backgroundColor: Pb.bg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text('Nouvelle version ${u.versionName} 🎉', style: Pb.t(28, weight: 700)),
+      content: SizedBox(
+        width: 520,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (u.notes.isNotEmpty) Text(u.notes, style: Pb.t(19, color: Pb.muted)),
+          if (_needPermission) ...[
+            const SizedBox(height: 12),
+            Text('Une seule fois : autorise « PartyBroc TV » à installer des applications '
+                '(réglage « Sources inconnues »), puis reviens ici avec la touche Retour.',
+                style: Pb.t(19, color: Pb.yellow)),
+          ],
+          if (busy) ...[
+            const SizedBox(height: 18),
+            LinearProgressIndicator(value: _progress == 0 ? null : _progress, minHeight: 10, color: Pb.pink, backgroundColor: Pb.card),
+            const SizedBox(height: 8),
+            Text('Téléchargement… ${((_progress ?? 0) * 100).round()} %', style: Pb.t(18, color: Pb.muted)),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: Pb.t(18, color: Pb.red)),
+          ],
+        ]),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      actions: busy
+          ? const []
+          : [
+              OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Plus tard')),
+              if (_needPermission)
+                FilledButton(autofocus: true, onPressed: openInstallSettings, child: const Text('Ouvrir les réglages'))
+              else
+                FilledButton(autofocus: true, onPressed: _go, child: Text(_error == null ? 'Mettre à jour' : 'Réessayer')),
+            ],
     );
   }
 }

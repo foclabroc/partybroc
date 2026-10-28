@@ -65,3 +65,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // FileProvider (mise à jour automatique de l'appli TV)
+    implementation("androidx.core:core:1.13.1")
+}
