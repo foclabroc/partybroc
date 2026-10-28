@@ -8,6 +8,10 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $repo = 'foclabroc/partybroc'
 
+# Le redémarrage du service demande les droits administrateur : on vérifie avant de commencer
+$admin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) { throw "Lance ce script dans un PowerShell ouvert en administrateur (clic droit > Exécuter en tant qu'administrateur)." }
+
 # Arrête tout si une commande externe (git, npm, nssm) échoue
 function Check($what) { if ($LASTEXITCODE -ne 0) { throw "$what a échoué (code $LASTEXITCODE), mise à jour arrêtée." } }
 
