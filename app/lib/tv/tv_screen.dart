@@ -184,7 +184,20 @@ class _TvScreenState extends State<TvScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && !kIsWeb) _onBack();
       },
-      child: _content(),
+      // Télécommande : flèches = changer de bouton, OK = appuyer (aussi dans un navigateur)
+      child: Shortcuts(
+        shortcuts: const <ShortcutActivator, Intent>{
+          SingleActivator(LogicalKeyboardKey.arrowLeft): DirectionalFocusIntent(TraversalDirection.left),
+          SingleActivator(LogicalKeyboardKey.arrowRight): DirectionalFocusIntent(TraversalDirection.right),
+          SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(TraversalDirection.up),
+          SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(TraversalDirection.down),
+          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
+        },
+        child: _content(),
+      ),
     );
   }
 
@@ -193,7 +206,8 @@ class _TvScreenState extends State<TvScreen> {
     return Listener(
       onPointerDown: (_) => Music.instance.unlock(),
       child: Focus(
-        autofocus: true,
+        canRequestFocus: false,
+        skipTraversal: true,
         onKeyEvent: (_, _) {
           Music.instance.unlock();
           return KeyEventResult.ignored;
@@ -274,29 +288,18 @@ class _Lobby extends StatelessWidget {
         Row(children: [
           const PbLogo(size: 64),
           const Spacer(),
+          // Boutons pilotables à la télécommande (flèches + OK), le focus est bien visible
           if (onUpdate != null) ...[
-            FilledButton.icon(
-              onPressed: onUpdate,
-              icon: const Icon(Icons.system_update_rounded, size: 28),
-              label: Text('Mise à jour', style: Pb.t(24, weight: 600)),
-            ),
-            const SizedBox(width: 20),
+            TvButton(icon: Icons.system_update_rounded, label: 'Mise à jour', onPressed: onUpdate!, highlight: true, autofocus: true),
+            const SizedBox(width: 16),
           ],
-          const _MusicButton(),
-          const SizedBox(width: 20),
+          _MusicButton(autofocus: onUpdate == null),
+          const SizedBox(width: 16),
+          TvButton(icon: Icons.refresh_rounded, label: 'Nouveau salon', onPressed: onNewRoom),
           if (!kIsWeb) ...[
-            TextButton.icon(
-              onPressed: onQuit,
-              icon: const Icon(Icons.power_settings_new_rounded, size: 30, color: Pb.muted),
-              label: Text('Quitter', style: Pb.t(26, color: Pb.muted)),
-            ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
+            TvButton(icon: Icons.power_settings_new_rounded, label: 'Quitter', onPressed: onQuit),
           ],
-          TextButton.icon(
-            onPressed: onNewRoom,
-            icon: const Icon(Icons.refresh_rounded, size: 30, color: Pb.muted),
-            label: Text('Nouveau salon', style: Pb.t(26, color: Pb.muted)),
-          ),
         ]),
         const SizedBox(height: 26),
         Expanded(
@@ -556,7 +559,8 @@ class _NetBadge extends StatelessWidget {
 
 /// Bouton son de la TV (accessible à la télécommande)
 class _MusicButton extends StatefulWidget {
-  const _MusicButton();
+  const _MusicButton({this.autofocus = false});
+  final bool autofocus;
 
   @override
   State<_MusicButton> createState() => _MusicButtonState();
@@ -566,13 +570,14 @@ class _MusicButtonState extends State<_MusicButton> {
   @override
   Widget build(BuildContext context) {
     final muted = Music.instance.muted;
-    return TextButton.icon(
+    return TvButton(
+      autofocus: widget.autofocus,
+      icon: muted ? Icons.music_off_rounded : Icons.music_note_rounded,
+      label: muted ? 'Musique coupée' : 'Musique',
       onPressed: () async {
         await Music.instance.toggle();
         if (mounted) setState(() {});
       },
-      icon: Icon(muted ? Icons.music_off_rounded : Icons.music_note_rounded, size: 30, color: Pb.muted),
-      label: Text(muted ? 'Musique coupée' : 'Musique', style: Pb.t(26, color: Pb.muted)),
     );
   }
 }
@@ -694,6 +699,56 @@ class _UpdateDialogState extends State<_UpdateDialog> with WidgetsBindingObserve
               else
                 FilledButton(autofocus: true, onPressed: _go, child: Text(_error == null ? 'Mettre à jour' : 'Réessayer')),
             ],
+    );
+  }
+}
+
+/// Bouton de l'écran TV : se sélectionne aux flèches de la télécommande, s'active avec OK,
+/// et le bouton sélectionné est bien visible (cadre rose, un peu plus gros)
+class TvButton extends StatefulWidget {
+  const TvButton({super.key, required this.icon, required this.label, required this.onPressed, this.highlight = false, this.autofocus = false});
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final bool highlight;
+  final bool autofocus;
+
+  @override
+  State<TvButton> createState() => _TvButtonState();
+}
+
+class _TvButtonState extends State<TvButton> {
+  bool _focus = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.highlight ? Pb.pink : (_focus ? Pb.cardHi : Pb.card.withValues(alpha: .6));
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 150),
+      scale: _focus ? 1.08 : 1,
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(40),
+        child: InkWell(
+          autofocus: widget.autofocus,
+          borderRadius: BorderRadius.circular(40),
+          onFocusChange: (f) => setState(() => _focus = f),
+          onTap: widget.onPressed,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(40),
+              border: Border.all(color: _focus ? Colors.white : Colors.transparent, width: 4),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(widget.icon, size: 30, color: widget.highlight || _focus ? Colors.white : Pb.muted),
+              const SizedBox(width: 10),
+              Text(widget.label, style: Pb.t(26, weight: 600, color: widget.highlight || _focus ? Colors.white : Pb.muted)),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }

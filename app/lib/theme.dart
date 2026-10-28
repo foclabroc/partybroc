@@ -104,8 +104,10 @@ class Pb {
           minimumSize: const Size.fromHeight(58),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           textStyle: t(20, weight: 600),
-        ),
+        ).copyWith(side: _focusSide),
       ),
+      // Télécommande : le bouton qui a le focus est entouré de blanc
+      focusColor: Colors.white24,
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: text,
@@ -113,7 +115,9 @@ class Pb {
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           textStyle: t(17, weight: 500),
-        ),
+        ).copyWith(side: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.focused)
+            ? const BorderSide(color: Colors.white, width: 4)
+            : const BorderSide(color: cardHi, width: 2))),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: cardHi,
@@ -123,6 +127,11 @@ class Pb {
     );
   }
 }
+
+const _focusSide = WidgetStateProperty<BorderSide?>.fromMap(<WidgetStatesConstraint, BorderSide?>{
+  WidgetState.focused: BorderSide(color: Colors.white, width: 4),
+  WidgetState.any: null,
+});
 
 /// Fond commun : dégradé nuit avec deux halos de couleur
 class PartyBackground extends StatelessWidget {

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'play/play_screen.dart';
@@ -13,6 +16,24 @@ import 'tv/tv_screen.dart';
 void main() {
   usePathUrlStrategy();
   runApp(const PartyBrocApp());
+  // Retour sur la page/l'appli (après le choix d'une photo, la veille…) : Android a pu
+  // jeter le dessin. On redessine tout l'écran, plusieurs fois le temps que le
+  // navigateur rende la main, au lieu d'attendre le prochain changement à l'écran.
+  AppLifecycleListener(
+    onShow: _repaint,
+    onResume: _repaint,
+  );
+}
+
+void _repaint() {
+  for (final ms in const [0, 300, 1000, 2500]) {
+    Timer(Duration(milliseconds: ms), () {
+      SchedulerBinding.instance.scheduleForcedFrame();
+      for (final v in WidgetsBinding.instance.renderViews) {
+        v.markNeedsPaint();
+      }
+    });
+  }
 }
 
 class PartyBrocApp extends StatelessWidget {

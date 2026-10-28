@@ -29,6 +29,12 @@
   const asked = new URLSearchParams(location.search).get('rendu');
   if (asked === 'cpu' || asked === 'gl' || asked === 'auto') store.set('pb_rendu', asked);
   let mode = store.get('pb_rendu') || 'auto';
+  // Téléphones : WebGL dans la page (« gl ») plutôt que WebAssembly + dessin dans un
+  // worker. Quand Android met le navigateur de côté (choix d'une photo…), le dessin
+  // du worker peut être perdu sans retour : écran violet. En « gl », la perte est
+  // visible (et Flutter sait la réparer).
+  const isPhone = location.pathname.replace(/\/+$/, '') === '/play';
+  if (mode === 'auto' && isPhone) mode = 'gl';
   if (mode === 'auto' && !webgl) mode = 'cpu';
   const config = mode === 'cpu' ? { renderer: 'canvaskit', canvasKitForceCpuOnly: true }
                : mode === 'gl'  ? { renderer: 'canvaskit' }
@@ -50,18 +56,35 @@
     if (l) l.remove();
   });
 
-  // Retour sur la page après l'arrière-plan : sur certains téléphones, le dessin
-  // (WebGL) est perdu et l'écran reste violet. On recharge alors la page : le
-  // joueur retrouve sa place grâce à son jeton, la TV son salon.
-  let glLost = false;
+  // Filet de sécurité sur le téléphone : au retour sur la page après un passage en
+  // arrière-plan (choix d'une photo, veille…), un petit bouton HTML « Recharger »
+  // s'affiche quelques secondes. Il reste visible même si le dessin de l'appli est
+  // perdu (écran violet). Recharger ne fait rien perdre : le joueur retrouve sa
+  // place grâce à son jeton, pseudo et photo sont déjà enregistrés.
   let hiddenAt = 0;
-  document.addEventListener('webglcontextlost', () => { glLost = true; }, true);
+  let tip = null;
+  const showTip = () => {
+    if (tip) tip.remove();
+    tip = document.createElement('button');
+    tip.textContent = '↻ Écran vide ? Recharger';
+    tip.style.cssText = 'position:fixed;top:10px;right:10px;z-index:99999;font:600 15px sans-serif;' +
+      'color:#fff;background:#FF4FA3;border:0;border-radius:20px;padding:10px 16px;box-shadow:0 4px 16px rgba(0,0,0,.4)';
+    tip.onclick = () => location.reload();
+    document.body.appendChild(tip);
+    const t = tip;
+    setTimeout(() => { if (tip === t) { t.remove(); tip = null; } }, 7000);
+  };
+  const back = () => {
+    if (!isPhone || document.visibilityState !== 'visible' || !hiddenAt) return;
+    if (Date.now() - hiddenAt > 1500) showTip();
+    hiddenAt = 0;
+  };
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
-    const away = hiddenAt ? Date.now() - hiddenAt : 0;
-    const phone = location.pathname.replace(/\/+$/, '') === '/play';
-    if (glLost || (phone && away > 10000)) location.reload();
+    if (document.visibilityState === 'hidden') hiddenAt = Date.now(); else back();
   });
+  window.addEventListener('blur', () => { if (!hiddenAt) hiddenAt = Date.now(); });
+  window.addEventListener('focus', back);
+  window.addEventListener('pageshow', (e) => { if (e.persisted) { hiddenAt = Date.now() - 2000; back(); } });
 
   _flutter.loader.load({
     config: config,
