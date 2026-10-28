@@ -182,6 +182,23 @@ class VoiceDirector {
       case 'survie':
         if (phase == 'ask') return '${s('statement')} Vrai ou faux ?';
         if (phase == 'reveal') return '${live['truth'] == true ? 'Vrai !' : 'Faux !'} ${s('explain')}';
+      case 'reflexes':
+        if (phase == 'ready') {
+          const names = {
+            'feu': 'Feu vert ! Attendez le vert.',
+            'taps': 'Marathon de taps !',
+            'couleur': 'Bonne couleur ! Touchez la couleur de l’encre.',
+            'compte': 'Compte vite !',
+            'cible': 'Cibles !',
+            'fleches': 'Flèches ! Attention aux erreurs.',
+            'intrus': 'Trouvez l’intrus !',
+            'chrono': 'Chrono à l’aveugle !',
+          };
+          final t = names[s('type')];
+          if (t == null) return null;
+          final target = (live['target'] as num?)?.toInt();
+          return s('type') == 'chrono' && target != null ? '$t Arrêtez-le à ${target ~/ 1000} secondes.' : t;
+        }
       case 'petitbac':
         if (phase == 'write') return 'Lettre ${s('letter')} ! ${list('categories').join(', ')}.';
         if (phase == 'check') return 'On vérifie les réponses !';

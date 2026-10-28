@@ -18,10 +18,23 @@ const _info = {
   'taps': ('👆', 'Marathon de taps', 'Tape sur ton écran le plus de fois possible pendant 8 secondes !'),
   'couleur': ('🎨', 'Bonne couleur', 'Touche la couleur de l’ENCRE du mot, pas ce qui est écrit !'),
   'compte': ('🔢', 'Compte vite', 'Compte les emojis qui s’affichent sur la TV, puis choisis le bon nombre.'),
+  'cible': ('🎯', 'Cibles', 'Touche les 5 cibles qui apparaissent sur ton téléphone, le plus vite possible !'),
+  'fleches': ('⬅️', 'Flèches', 'Touche la direction de chaque flèche. Une erreur = 1 seconde de pénalité !'),
+  'intrus': ('🔎', 'L’intrus', 'Un seul emoji est différent des autres sur ton téléphone : trouve-le !'),
+  'chrono': ('⏱️', 'Chrono à l’aveugle', 'Le chrono disparaît vite : arrête-le pile au temps demandé !'),
 };
 
-String _metric(Map<String, dynamic> o, String type) =>
-    type == 'taps' ? '${o['n']} taps' : '${((o['rt'] as num) / 1000).toStringAsFixed(3).replaceAll('.', ',')} s';
+const _arrows = ['⬅️', '➡️', '⬆️', '⬇️'];
+const _arrowIcons = [Icons.arrow_back_rounded, Icons.arrow_forward_rounded, Icons.arrow_upward_rounded, Icons.arrow_downward_rounded];
+
+String _sec(num ms, [int digits = 3]) => '${(ms / 1000).toStringAsFixed(digits).replaceAll('.', ',')} s';
+
+String _metric(Map<String, dynamic> o, String type) => switch (type) {
+      'taps' => '${o['n']} taps',
+      'chrono' => '${_sec(o['stopped'] as num? ?? 0, 2)} (écart ${_sec(o['rt'] as num, 2)})',
+      'fleches' => '${_sec(o['rt'] as num)}${(o['e'] as num? ?? 0) > 0 ? ' (${o['e']} erreur${(o['e'] as num) > 1 ? 's' : ''})' : ''}',
+      _ => _sec(o['rt'] as num),
+    };
 
 /// Course de réflexes sur la TV
 class RfxTv extends StatelessWidget {
@@ -91,6 +104,17 @@ class RfxTv extends StatelessWidget {
             : Text(rfxNames[word], style: Pb.t(300, weight: 700, color: rfxColors[ink]));
       case 'compte':
         center = live.phase == 'show' ? _emojiGrid(live.s('emoji') ?? '⭐', _cells()) : _countAsk();
+      case 'cible' || 'fleches' || 'intrus':
+        center = Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(_info[type]!.$1, style: const TextStyle(fontSize: 200)),
+          Text('Sur ton téléphone, vite !', style: Pb.t(80, weight: 700)),
+        ]);
+      case 'chrono':
+        center = Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Arrête le chrono à', style: Pb.t(70, weight: 600, color: Pb.muted)),
+          Text(_sec(live.i('target'), 0), style: Pb.t(260, weight: 700, color: Pb.yellow)),
+          Text('…sans le voir ! 🙈', style: Pb.t(60, weight: 600)),
+        ]);
       default:
         center = const SizedBox.shrink();
     }
@@ -176,6 +200,8 @@ class RfxTv extends StatelessWidget {
           Text('${_info[type]?.$1 ?? ''}  Résultats', style: Pb.t(70, weight: 700)),
           const Spacer(),
           if (type == 'compte') TvChip(text: 'Il y en avait ${live.i('answer')} ${live.s('emoji') ?? ''}', color: Pb.yellow, size: 40),
+          if (type == 'chrono') TvChip(text: 'Objectif : ${_sec(live.i('target'), 0)}', color: Pb.yellow, size: 40),
+          if (type == 'intrus') TvChip(text: 'L’intrus : ${live.s('odd') ?? ''} parmi les ${live.s('base') ?? ''}', color: Pb.yellow, size: 40),
           if (type == 'couleur' && live.i('ink', -1) >= 0)
             TvChip(text: 'Il fallait : ${rfxNames[live.i('ink')].toLowerCase()}', color: rfxColors[live.i('ink')], size: 40),
         ]),
@@ -228,6 +254,9 @@ class _RfxPlayState extends State<RfxPlay> {
   int _sentTaps = -1;
   Timer? _tapTimer;
   bool _sent = false; // déjà répondu à cette épreuve (en attendant la confirmation du serveur)
+  int _step = 0; // cibles touchées / flèches réussies
+  int _errors = 0; // flèches : erreurs
+  Timer? _chronoTimer; // chrono : affichage du début
 
   Map<String, dynamic> get live => widget.live;
   String get type => live.s('type') ?? '';
@@ -254,6 +283,17 @@ class _RfxPlayState extends State<RfxPlay> {
       _sent = false;
       _taps = 0;
       _sentTaps = -1;
+      _step = 0;
+      _errors = 0;
+    }
+    _chronoTimer?.cancel();
+    if (live.phase == 'go' && type == 'chrono') {
+      // le chrono s'affiche 1,5 s puis disparaît
+      _chronoTimer = Timer.periodic(const Duration(milliseconds: 40), (t) {
+        if (!mounted) return t.cancel();
+        setState(() {});
+        if (_watch.elapsedMilliseconds > 1500) t.cancel();
+      });
     }
     if (live.phase == 'go') {
       _watch
@@ -289,6 +329,7 @@ class _RfxPlayState extends State<RfxPlay> {
   @override
   void dispose() {
     _tapTimer?.cancel();
+    _chronoTimer?.cancel();
     super.dispose();
   }
 
@@ -339,20 +380,125 @@ class _RfxPlayState extends State<RfxPlay> {
             Text('La couleur de l’ENCRE !', style: Pb.t(22, weight: 700)),
             const SizedBox(height: 14),
             Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
+              child: _grid4([
                   for (var c = 0; c < 4; c++)
                     Listener(
                       onPointerDown: (_) => _answer({'c': c}),
                       child: Container(decoration: BoxDecoration(color: rfxColors[c], borderRadius: BorderRadius.circular(24))),
                     ),
-                ],
-              ),
+                ]),
             ),
+          ]),
+        );
+      case 'cible':
+        if (done) return const PhoneCenter(emoji: '🎯', title: 'Toutes touchées !', sub: 'Regarde la TV');
+        if (live.phase != 'go') return const PhoneCenter(emoji: '🎯', title: 'Prépare-toi…');
+        final targets = [for (final t in (live['targets'] as List?) ?? const []) [for (final v in t as List) (v as num).toDouble()]];
+        if (_step >= targets.length) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 44, 12, 12),
+          child: LayoutBuilder(builder: (_, c) {
+            const size = 96.0;
+            final t = targets[_step];
+            return Stack(children: [
+              Positioned.fill(child: Container(decoration: BoxDecoration(color: Pb.card.withValues(alpha: .5), borderRadius: BorderRadius.circular(24)))),
+              Positioned(top: 10, left: 0, right: 0, child: Text('${_step + 1} / ${targets.length}', textAlign: TextAlign.center, style: Pb.t(20, weight: 700, color: Pb.muted))),
+              Positioned(
+                left: t[0] * (c.maxWidth - size),
+                top: t[1] * (c.maxHeight - size),
+                child: Listener(
+                  onPointerDown: (_) {
+                    HapticFeedback.mediumImpact();
+                    setState(() => _step++);
+                    if (_step >= targets.length) _answer({});
+                  },
+                  child: const SizedBox(width: size, height: size, child: Center(child: Text('🎯', style: TextStyle(fontSize: 80)))),
+                ),
+              ),
+            ]);
+          }),
+        );
+      case 'fleches':
+        if (done) return const PhoneCenter(emoji: '✅', title: 'Fini !', sub: 'Regarde la TV');
+        if (live.phase != 'go') return const PhoneCenter(emoji: '⬅️', title: 'Prépare-toi…');
+        final arrows = [for (final a in (live['arrows'] as List?) ?? const []) (a as num).toInt()];
+        if (_step >= arrows.length) return const SizedBox.shrink();
+        Widget btn(int d) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Listener(
+                  onPointerDown: (_) {
+                    if (d == arrows[_step]) {
+                      HapticFeedback.selectionClick();
+                      setState(() => _step++);
+                      if (_step >= arrows.length) _answer({'e': _errors});
+                    } else {
+                      HapticFeedback.heavyImpact();
+                      setState(() => _errors++);
+                    }
+                  },
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: Pb.answerColors[d], borderRadius: BorderRadius.circular(24)),
+                    child: Icon(_arrowIcons[d], size: 64, color: Colors.white),
+                  ),
+                ),
+              ),
+            );
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 44, 12, 12),
+          child: Column(children: [
+            Text('${_step + 1} / ${arrows.length}${_errors > 0 ? '   ❌ $_errors' : ''}', style: Pb.t(20, weight: 700, color: Pb.muted)),
+            Expanded(child: Center(child: Text(_arrows[arrows[_step]], style: const TextStyle(fontSize: 130)))),
+            SizedBox(height: 120, child: Row(children: [btn(0), btn(2)])),
+            SizedBox(height: 120, child: Row(children: [btn(3), btn(1)])),
+          ]),
+        );
+      case 'intrus':
+        if (done) return const PhoneCenter(emoji: '✅', title: 'Réponse envoyée', sub: 'Regarde la TV');
+        if (live.phase != 'go') return const PhoneCenter(emoji: '🔎', title: 'Prépare-toi…');
+        final pos = live.i('pos'), n = live.i('size', 20);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 44, 12, 12),
+          child: Column(children: [
+            Text('Lequel est différent ?', style: Pb.t(22, weight: 700)),
+            const SizedBox(height: 10),
+            // Toute la grille doit tenir à l'écran (sinon l'intrus peut être caché en bas)
+            Expanded(
+              child: LayoutBuilder(builder: (_, c) {
+                final rows = (n / 4).ceil();
+                final cell = c.maxWidth / 4, h = c.maxHeight / rows;
+                return GridView.count(
+                  crossAxisCount: 4,
+                  childAspectRatio: cell / h,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    for (var i = 0; i < n; i++)
+                      Listener(
+                        onPointerDown: (_) => _answer({'c': i}),
+                        child: Center(
+                          child: Text(i == pos ? live.s('odd') ?? '' : live.s('base') ?? '',
+                              style: TextStyle(fontSize: (h < cell ? h : cell) * .55)),
+                        ),
+                      ),
+                  ],
+                );
+              }),
+            ),
+          ]),
+        );
+      case 'chrono':
+        if (done) return const PhoneCenter(emoji: '⏱️', title: 'Chrono arrêté !', sub: 'Regarde la TV');
+        if (live.phase != 'go') return PhoneCenter(emoji: '⏱️', title: 'Objectif : ${_sec(live.i('target'), 0)}', sub: 'Le chrono va disparaître…');
+        final ms = _watch.elapsedMilliseconds;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 44, 16, 16),
+          child: Column(children: [
+            Text('Objectif : ${_sec(live.i('target'), 0)}', style: Pb.t(26, weight: 700, color: Pb.yellow)),
+            const SizedBox(height: 10),
+            Text(ms < 1500 ? _sec(ms, 2) : '?,?? s', style: Pb.t(64, weight: 700)),
+            const SizedBox(height: 16),
+            Expanded(child: _bigButton(color: Pb.pink, label: 'STOP', onDown: () => _answer({}))),
           ]),
         );
       case 'compte':
@@ -365,12 +511,7 @@ class _RfxPlayState extends State<RfxPlay> {
             Text('Combien ?', style: Pb.t(26, weight: 700)),
             const SizedBox(height: 14),
             Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
+              child: _grid4([
                   for (var i = 0; i < opts.length; i++)
                     Listener(
                       onPointerDown: (_) => _answer({'c': opts[i]}),
@@ -380,13 +521,24 @@ class _RfxPlayState extends State<RfxPlay> {
                         child: Text('${opts[i]}', style: Pb.t(64, weight: 700, color: Colors.white)),
                       ),
                     ),
-                ],
-              ),
+                ]),
             ),
           ]),
         );
     }
     return const SizedBox.shrink();
+  }
+
+  // 4 cases en 2 × 2 qui remplissent toujours la place (une grille fixe dépassait de
+  // l'écran sur les petits téléphones)
+  static Widget _grid4(List<Widget> c) {
+    Widget row(int i) => Expanded(
+          child: Row(children: [
+            for (var j = i; j < i + 2; j++)
+              Expanded(child: Padding(padding: const EdgeInsets.all(6), child: j < c.length ? c[j] : const SizedBox())),
+          ]),
+        );
+    return Column(children: [row(0), row(2)]);
   }
 
   // Bouton plein écran qui réagit dès l'appui (pas au relâchement)

@@ -45,7 +45,8 @@ class _CountdownState extends State<Countdown> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     final left = _deadline.difference(DateTime.now()).inMilliseconds.clamp(0, widget.duration);
     final frac = widget.duration == 0 ? 0.0 : left / widget.duration;
-    return widget.builder(context, frac, (left / 1000).ceil());
+    // RepaintBoundary : seul le chrono est redessiné 60 fois par seconde, pas tout l'écran
+    return RepaintBoundary(child: widget.builder(context, frac, (left / 1000).ceil()));
   }
 }
 

@@ -118,7 +118,7 @@ class _FireworksState extends State<Fireworks> with SingleTickerProviderStateMix
     return IgnorePointer(
       child: LayoutBuilder(builder: (context, c) {
         _size = Size(c.maxWidth, c.maxHeight);
-        return CustomPaint(size: _size, painter: _Painter(_parts, _confetti));
+        return RepaintBoundary(child: CustomPaint(size: _size, painter: _Painter(_parts, _confetti)));
       }),
     );
   }

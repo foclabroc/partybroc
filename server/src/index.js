@@ -435,7 +435,7 @@ const handlers = {
   // ---- statistiques d'un salon permanent (écran ou joueur du salon) ----
   async perm_stats(ws) {
     const { room } = ws.ctx;
-    if (!room?.perm) return;
+    if (!room?.perm || !allow(ws, 'stats', 3, 5_000)) return;
     const st = await db.permStats(room.code);
     if (st) send(ws, { t: 'perm_stats', ...st });
   },

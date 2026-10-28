@@ -3,14 +3,18 @@
 //   taps    : taper le plus de fois possible en 8 s
 //   couleur : toucher la couleur de l'ENCRE du mot affiché (pas le mot)
 //   compte  : compter les emojis affichés 3 s, puis choisir le bon nombre
+//   cible   : toucher 5 cibles qui apparaissent une par une sur le téléphone
+//   fleches : 6 flèches, toucher la bonne direction (erreur = +1 s)
+//   intrus  : trouver l'emoji différent dans une grille
+//   chrono  : arrêter un chrono invisible pile au temps demandé
 // Les temps de réaction sont mesurés par le téléphone (indépendant du réseau),
 // avec des garde-fous côté serveur.
 import crypto from 'node:crypto';
 import { BaseGame, fastTimings, shuffle } from './common.js';
 
 export const RFX = fastTimings({
-  trials: [3, 5, 8],
-  defaultTrials: 5,
+  trials: [4, 6, 8, 12],
+  defaultTrials: 6,
   introMs: 5000,
   readyMs: 4500,
   feuMinMs: 2000,
@@ -20,6 +24,11 @@ export const RFX = fastTimings({
   couleurMs: 5000,
   compteShowMs: 3000,
   compteMs: 6000,
+  cibleMs: 12000,
+  flechesMs: 12000,
+  intrusMs: 8000,
+  chronoExtraMs: 4000,  // après le temps demandé
+  arrowPenaltyMs: 1000,
   resultMs: 6000,
   podiumMs: 25000,
   points: [500, 400, 300, 200],  // 1er, 2e, 3e, les suivants
@@ -29,7 +38,12 @@ export const RFX = fastTimings({
 
 export const COLORS = ['rouge', 'bleu', 'jaune', 'vert'];
 const EMOJIS = ['🍕', '🐸', '⭐', '🎈', '🍩', '🦄', '⚽', '🍓', '🐱', '🎁'];
-const TYPES = ['feu', 'taps', 'couleur', 'compte'];
+const TYPES = ['feu', 'taps', 'couleur', 'compte', 'cible', 'fleches', 'intrus', 'chrono'];
+// Paires d'emojis presque pareils (l'intrus)
+const LOOKALIKE = [['😀', '😃'], ['🙂', '🙃'], ['😐', '😑'], ['🐶', '🐕'], ['🐱', '🐈'], ['🍎', '🍅'], ['⭐', '🌟'],
+  ['🌑', '🌚'], ['🍊', '🍑'], ['🚗', '🚙'], ['❤️', '🧡'], ['😺', '😸'], ['🌕', '🌝'], ['🐢', '🦎'], ['🍋', '🍌']];
+const CHRONO_TARGETS = [3000, 4000, 5000, 6000, 7000];
+const r2 = (v) => Math.round(v * 100) / 100;
 
 export class ReflexesGame extends BaseGame {
   static id = 'reflexes';
@@ -96,6 +110,16 @@ export class ReflexesGame extends BaseGame {
       }
       Object.assign(this.trial, { n, emoji, cells, options: [...opts].sort((a, b) => a - b) });
     }
+    if (this.type === 'cible') {
+      this.trial.targets = Array.from({ length: 5 }, () => [r2(0.12 + Math.random() * 0.76), r2(0.12 + Math.random() * 0.76)]);
+    }
+    if (this.type === 'fleches') this.trial.arrows = Array.from({ length: 6 }, () => crypto.randomInt(4));
+    if (this.type === 'intrus') {
+      const [a, b] = LOOKALIKE[crypto.randomInt(LOOKALIKE.length)];
+      const flip = crypto.randomInt(2) === 1;
+      Object.assign(this.trial, { base: flip ? b : a, odd: flip ? a : b, pos: crypto.randomInt(20), size: 20 });
+    }
+    if (this.type === 'chrono') this.trial.target = CHRONO_TARGETS[crypto.randomInt(CHRONO_TARGETS.length)];
     this.phase = 'ready';
     this.schedule(RFX.readyMs, () => this.go());
     this.changed();
@@ -122,6 +146,14 @@ export class ReflexesGame extends BaseGame {
         this.phase = 'go';
         t.startedAt = Date.now();
         this.schedule(RFX.couleurMs, () => this.result());
+        break;
+      case 'cible':
+      case 'fleches':
+      case 'intrus':
+      case 'chrono':
+        this.phase = 'go';
+        t.startedAt = Date.now();
+        this.schedule(t.type === 'chrono' ? t.target + RFX.chronoExtraMs : RFX[`${t.type}Ms`], () => this.result());
         break;
       case 'compte':
         this.phase = 'show';
@@ -175,6 +207,22 @@ export class ReflexesGame extends BaseGame {
       } else if (t.type === 'compte') {
         if (this.phase !== 'go' || !Number.isInteger(m.c)) return;
         t.results.set(p.pid, { rt: this.rt(m), ok: m.c === t.n, choice: m.c });
+      } else if (t.type === 'cible') {
+        if (this.phase !== 'go') return;
+        t.results.set(p.pid, { rt: Math.max(this.rt(m), 5 * RFX.minRt), ok: true });
+      } else if (t.type === 'fleches') {
+        if (this.phase !== 'go') return;
+        const e = Math.max(0, Math.min(30, Math.floor(Number(m.e) || 0)));
+        t.results.set(p.pid, { rt: Math.max(this.rt(m), 6 * RFX.minRt) + e * RFX.arrowPenaltyMs, ok: true, e });
+      } else if (t.type === 'intrus') {
+        if (this.phase !== 'go' || !Number.isInteger(m.c)) return;
+        t.results.set(p.pid, { rt: this.rt(m), ok: m.c === t.pos, choice: m.c });
+      } else if (t.type === 'chrono') {
+        if (this.phase !== 'go') return;
+        // temps arrêté (borné à ce que le serveur a vu), et l'écart avec le temps demandé
+        const seen = Date.now() - t.startedAt;
+        const v = Math.max(0, Math.min(Math.round(Number(m.rt) || seen), seen + 300));
+        t.results.set(p.pid, { rt: Math.abs(v - t.target), stopped: v, ok: true });
       }
       if (t.type !== 'taps' && this.allDone()) this.schedule(600, () => this.result());
       this.changed();
@@ -232,6 +280,13 @@ export class ReflexesGame extends BaseGame {
       if (this.phase === 'show') { s.emoji = t.emoji; s.cells = t.cells; }
       if (this.phase === 'go' || this.phase === 'result') s.options = t.options;
     }
+    // Ce que les téléphones doivent afficher, seulement une fois l'épreuve lancée
+    if (this.phase === 'go' || this.phase === 'result') {
+      if (t.type === 'cible') s.targets = t.targets;
+      if (t.type === 'fleches') s.arrows = t.arrows;
+      if (t.type === 'intrus') Object.assign(s, { base: t.base, odd: t.odd, pos: t.pos, size: t.size });
+    }
+    if (t.type === 'chrono') s.target = t.target;
     if (this.phase === 'result') {
       s.order = t.order;
       if (t.type === 'compte') { s.answer = t.n; s.emoji = t.emoji; s.cells = t.cells; }

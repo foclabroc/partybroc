@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -28,6 +29,9 @@ class DrawBoard extends ChangeNotifier {
 
   int turn = -1;
   final List<Stroke> strokes = [];
+  // Change à chaque modification qui n'est pas « des points en plus au dernier trait »
+  // (le dessin des traits terminés, mis en cache, doit alors être refait)
+  int version = 0;
   void Function()? requestSync;
   DateTime _lastAsk = DateTime(2000);
 
@@ -44,6 +48,7 @@ class DrawBoard extends ChangeNotifier {
       case 'clear':
         turn = t;
         strokes.clear();
+        version++;
       case 'full':
         turn = t;
         strokes
@@ -53,6 +58,7 @@ class DrawBoard extends ChangeNotifier {
               Stroke((s['s'] as num).toInt(), (s['c'] as num).toInt(), (s['w'] as num).toInt(),
                   [for (final v in s['p'] as List) (v as num).toInt()]),
           ]);
+        version++;
       case 'pts':
         if (t != turn) return _ask(); // on a raté le début de ce tour
         final id = (m['s'] as num).toInt();
@@ -60,12 +66,15 @@ class DrawBoard extends ChangeNotifier {
         if (st == null) {
           st = Stroke(id, (m['c'] as num).toInt(), (m['w'] as num).toInt());
           strokes.add(st);
+        } else if (st != strokes.last) {
+          version++; // points ajoutés à un ancien trait (rare) : on refait le cache
         }
         st.pts.addAll([for (final v in m['p'] as List) (v as num).toInt()]);
       case 'undo':
         if (t != turn) return _ask();
         final id = (m['s'] as num).toInt();
         strokes.removeWhere((x) => x.id == id);
+        version++;
       default:
         return;
     }
@@ -92,45 +101,71 @@ class DrawBoard extends ChangeNotifier {
 
   void localUndo() {
     if (strokes.isNotEmpty) strokes.removeLast();
+    version++;
     notifyListeners();
   }
 
   void localClear() {
     strokes.clear();
+    version++;
     notifyListeners();
   }
 }
 
+/// Dessine le tableau. Les traits terminés sont gardés dans une image (cache) : à chaque
+/// paquet de points reçu, seul le dernier trait est redessiné (avant : tout le dessin,
+/// 20 fois par seconde, ce qui faisait ramer la TV).
 class DrawPainter extends CustomPainter {
   DrawPainter(this.board) : super(repaint: board);
   final DrawBoard board;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
-    final k = size.width / 1000;
-    for (final s in board.strokes) {
-      if (s.pts.length < 2) continue;
-      final paint = Paint()
-        ..color = drawColors[s.color % drawColors.length]
-        ..strokeWidth = math.max(1.5, s.width * k)
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke;
-      if (s.pts.length == 2) {
-        canvas.drawCircle(Offset(s.pts[0] * k, s.pts[1] * k), paint.strokeWidth / 2, paint..style = PaintingStyle.fill);
-        continue;
-      }
-      final path = Path()..moveTo(s.pts[0] * k, s.pts[1] * k);
-      for (var i = 2; i + 1 < s.pts.length; i += 2) {
-        path.lineTo(s.pts[i] * k, s.pts[i + 1] * k);
-      }
-      canvas.drawPath(path, paint);
+  ui.Picture? _cache;
+  int _cacheVersion = -1, _cacheCount = -1;
+  Size _cacheSize = Size.zero;
+
+  static void _stroke(Canvas canvas, Stroke s, double k) {
+    if (s.pts.length < 2) return;
+    final paint = Paint()
+      ..color = drawColors[s.color % drawColors.length]
+      ..strokeWidth = math.max(1.5, s.width * k)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    if (s.pts.length == 2) {
+      canvas.drawCircle(Offset(s.pts[0] * k, s.pts[1] * k), paint.strokeWidth / 2, paint..style = PaintingStyle.fill);
+      return;
     }
+    final path = Path()..moveTo(s.pts[0] * k, s.pts[1] * k);
+    for (var i = 2; i + 1 < s.pts.length; i += 2) {
+      path.lineTo(s.pts[i] * k, s.pts[i + 1] * k);
+    }
+    canvas.drawPath(path, paint);
   }
 
   @override
-  bool shouldRepaint(DrawPainter old) => false;
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 1000;
+    final strokes = board.strokes;
+    final done = strokes.isEmpty ? 0 : strokes.length - 1; // tous sauf le dernier
+    if (_cache == null || _cacheVersion != board.version || _cacheCount != done || _cacheSize != size) {
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      c.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+      for (var i = 0; i < done; i++) {
+        _stroke(c, strokes[i], k);
+      }
+      _cache?.dispose();
+      _cache = rec.endRecording();
+      _cacheVersion = board.version;
+      _cacheCount = done;
+      _cacheSize = size;
+    }
+    canvas.drawPicture(_cache!);
+    if (strokes.isNotEmpty) _stroke(canvas, strokes.last, k);
+  }
+
+  @override
+  bool shouldRepaint(DrawPainter old) => old.board != board;
 }
 
 /// Le dessin affiché (TV ou téléphone des devineurs)
@@ -143,7 +178,7 @@ class DrawView extends StatelessWidget {
         aspectRatio: 1,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
-          child: CustomPaint(painter: DrawPainter(DrawBoard.instance), size: Size.infinite),
+          child: RepaintBoundary(child: CustomPaint(painter: DrawPainter(DrawBoard.instance), size: Size.infinite)),
         ),
       );
 }
@@ -221,7 +256,7 @@ class _DrawPadState extends State<DrawPad> {
               _send();
               _cur = null;
             },
-            child: CustomPaint(painter: DrawPainter(_board), size: Size.infinite),
+            child: RepaintBoundary(child: CustomPaint(painter: DrawPainter(_board), size: Size.infinite)),
           ),
         );
       }),

@@ -106,10 +106,10 @@ try {
     const { tv, ps } = await setup(['Ana', 'Ben', 'Cléo']);
     const [a, b, c] = ps;
     a.send({ t: 'select_game', game: 'reflexes' });
-    a.send({ t: 'game_option', key: 'trials', value: 8 });
+    a.send({ t: 'game_option', key: 'trials', value: 12 });
     a.send({ t: 'start_game' });
     const seen = new Set();
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < 12; k++) {
       let g = (await live(tv, (g) => g.id === 'reflexes' && g.index === k && g.phase === 'ready', 6000)).room.game;
       seen.add(g.type);
       if (g.type === 'feu') {
@@ -150,11 +150,52 @@ try {
         assert.equal(g.answer, n);
         assert.deepEqual(g.order.map((o) => o.pid), [c.pid, a.pid]);
         assert.deepEqual(g.order.map((o) => o.pts), [500, 400]);
+      } else if (g.type === 'cible') {
+        assert.ok(!('targets' in g), 'cibles cachées avant le départ');
+        g = (await live(tv, (g) => g.index === k && g.phase === 'go')).room.game;
+        assert.equal(g.targets.length, 5);
+        await sleep(500);
+        gm(a, { t: 'rfx', k, rt: 600 });
+        gm(b, { t: 'rfx', k, rt: 450 });
+        gm(c, { t: 'rfx', k, rt: 100 }); // impossible pour 5 cibles : ramené à 400 ms
+        g = (await live(tv, (g) => g.index === k && g.phase === 'result')).room.game;
+        assert.deepEqual(g.order.map((o) => o.pid), [c.pid, b.pid, a.pid]);
+        assert.equal(g.order[0].rt, 400);
+      } else if (g.type === 'fleches') {
+        g = (await live(tv, (g) => g.index === k && g.phase === 'go')).room.game;
+        assert.equal(g.arrows.length, 6);
+        await sleep(700);
+        gm(a, { t: 'rfx', k, rt: 900, e: 0 });
+        gm(b, { t: 'rfx', k, rt: 600, e: 5 }); // 5 erreurs = +5 s
+        gm(c, { t: 'rfx', k, rt: 50, e: 0 });
+        g = (await live(tv, (g) => g.index === k && g.phase === 'result')).room.game;
+        assert.deepEqual(g.order.map((o) => o.pid), [c.pid, a.pid, b.pid]);
+        assert.equal(g.order[2].e, 5);
+        assert.ok(g.order[2].rt > 1000);
+      } else if (g.type === 'intrus') {
+        g = (await live(tv, (g) => g.index === k && g.phase === 'go')).room.game;
+        assert.notEqual(g.base, g.odd);
+        await sleep(400);
+        gm(a, { t: 'rfx', k, c: g.pos, rt: 300 });
+        gm(b, { t: 'rfx', k, c: (g.pos + 1) % g.size, rt: 100 }); // mauvaise case
+        gm(c, { t: 'rfx', k, c: g.pos, rt: 200 });
+        g = (await live(tv, (g) => g.index === k && g.phase === 'result')).room.game;
+        assert.deepEqual(g.order.map((o) => o.pid), [c.pid, a.pid]);
+      } else if (g.type === 'chrono') {
+        assert.ok(g.target >= 3000);
+        await live(tv, (g) => g.index === k && g.phase === 'go');
+        gm(a, { t: 'rfx', k, rt: 200 });
+        gm(b, { t: 'rfx', k, rt: 100 });
+        gm(c, { t: 'rfx', k, rt: 99999 }); // borné à ce que le serveur a vu (+ 300 ms)
+        g = (await live(tv, (g) => g.index === k && g.phase === 'result')).room.game;
+        assert.deepEqual(g.order.map((o) => o.pid), [c.pid, a.pid, b.pid]);
+        assert.ok(g.order[0].stopped < 1500);
+        assert.equal(g.order[1].rt, g.target - 200);
       }
     }
-    assert.equal(seen.size, 4, 'les 4 épreuves');
+    assert.equal(seen.size, 8, 'les 8 épreuves');
     await live(tv, (g) => g.phase === 'podium', 4000);
-    step('Course de réflexes : feu vert (faux départ, temps bornés), taps plafonnés, couleur de l’encre, compte des emojis, 4 épreuves différentes');
+    step('Course de réflexes : feu vert (faux départ, temps bornés), taps plafonnés, couleur de l’encre, compte des emojis, cibles, flèches (pénalités), intrus, chrono à l’aveugle, 8 épreuves différentes');
     for (const x of [tv, ...ps]) x.close();
   }
 

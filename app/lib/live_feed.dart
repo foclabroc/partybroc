@@ -120,7 +120,7 @@ class LiveLayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final feed = LiveFeed.instance;
     return IgnorePointer(
-      child: ListenableBuilder(
+      child: RepaintBoundary(child: ListenableBuilder(
         listenable: feed,
         builder: (context, _) => LayoutBuilder(builder: (context, c) {
           return Stack(children: [
@@ -140,7 +140,7 @@ class LiveLayer extends StatelessWidget {
               ),
           ]);
         }),
-      ),
+      )),
     );
   }
 }

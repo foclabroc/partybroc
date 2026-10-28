@@ -151,7 +151,7 @@ class PartyBackground extends StatelessWidget {
       child: Stack(children: [
         Positioned(top: -160, right: -120, child: _halo(Pb.pink.withValues(alpha: .22), 420)),
         Positioned(bottom: -200, left: -140, child: _halo(Pb.cyan.withValues(alpha: .14), 480)),
-        Positioned.fill(child: child),
+        Positioned.fill(child: RepaintBoundary(child: child)),
       ]),
     );
   }
