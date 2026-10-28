@@ -21,6 +21,7 @@ import '../games/quiz_state.dart';
 import '../games/tv_game.dart';
 import '../live_feed.dart';
 import '../models.dart';
+import '../sfx.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
@@ -49,6 +50,8 @@ class _PlayScreenState extends State<PlayScreen> {
   late final _code = TextEditingController(text: (widget.initialCode ?? '').toUpperCase());
   final _pw = TextEditingController();
   bool _showScreen = true; // salon permanent : l'écran du jeu aussi sur le téléphone
+  bool _phoneSfx = true; // salon permanent : les bruitages de la TV aussi sur le téléphone
+  final _sfx = SfxDirector();
   String? _formError;
 
   // Session en cours (pour revenir après une coupure)
@@ -74,6 +77,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _prefs = prefs;
     _profile = await Profile.load(prefs);
     _showScreen = prefs.getBool('show_screen') ?? true;
+    _phoneSfx = prefs.getBool('phone_sfx') ?? true;
     _sCode = prefs.getString('s_code');
     _sToken = prefs.getString('s_token');
     final wanted = widget.initialCode?.toUpperCase();
@@ -147,6 +151,11 @@ class _PlayScreenState extends State<PlayScreen> {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _you = m['you'] as Map<String, dynamic>?;
         });
+        // Joueur à distance (salon permanent) : les mêmes bruitages que la TV, s'il le veut
+        if (_room!.perm && _phoneSfx) {
+          Sfx.instance.init();
+          _sfx.onRoom(m['room'] as Map<String, dynamic>);
+        }
       case 'draw':
         DrawBoard.instance.apply(m);
       case 'dsn_close':
@@ -248,6 +257,7 @@ class _PlayScreenState extends State<PlayScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _sfx.dispose();
     _life.dispose();
     _sock.dispose();
     _code.dispose();
@@ -316,7 +326,17 @@ class _PlayScreenState extends State<PlayScreen> {
           send: _sock.send,
           showScreen: _showScreen,
           onShowScreen: _setShowScreen,
+          phoneSfx: _phoneSfx,
+          onPhoneSfx: _setPhoneSfx,
         );
+    }
+  }
+
+  void _setPhoneSfx(bool v) {
+    _prefs?.setBool('phone_sfx', v);
+    setState(() => _phoneSfx = v);
+    if (v) {
+      Sfx.instance.init().then((_) => Sfx.instance.play('pop'));
     }
   }
 
@@ -494,10 +514,12 @@ class _LobbyView extends StatelessWidget {
     required this.send,
     required this.showScreen,
     required this.onShowScreen,
+    required this.phoneSfx,
+    required this.onPhoneSfx,
   });
 
-  final bool showScreen;
-  final ValueChanged<bool> onShowScreen;
+  final bool showScreen, phoneSfx;
+  final ValueChanged<bool> onShowScreen, onPhoneSfx;
   final RoomView room;
   final String? myPid;
   final VoidCallback onEdit;
@@ -554,6 +576,14 @@ class _LobbyView extends StatelessWidget {
                 activeThumbColor: Pb.pink,
                 onChanged: onShowScreen,
                 title: Text('Écran du jeu sur mon téléphone', style: Pb.t(15, weight: 600)),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: phoneSfx,
+                activeThumbColor: Pb.pink,
+                onChanged: onPhoneSfx,
+                title: Text('Sons sur mon téléphone', style: Pb.t(15, weight: 600)),
               ),
             ]),
           ),
