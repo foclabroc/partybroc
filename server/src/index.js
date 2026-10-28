@@ -107,6 +107,30 @@ function readProfile(m) {
   return { name, emoji: cleanEmoji(m.emoji), color, photo: decodePhoto(m.photo) };
 }
 
+// Réactions proposées sur les téléphones (les autres sont refusées)
+const REACTIONS = ['😂', '👏', '❤️', '😮', '🔥', '👍', '😱', '🎉'];
+
+// Message : 80 caractères, sans caractères invisibles (sauf ceux qui assemblent les emojis)
+function cleanChat(raw) {
+  if (typeof raw !== 'string') return '';
+  const s = raw.normalize('NFC')
+    .replace(/(?!\u200d)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return [...s].slice(0, 80).join('');
+}
+
+// n actions par période et par joueur, au-delà c'est refusé
+function allow(p, kind, n, ms) {
+  const now = Date.now();
+  p.rate ??= {};
+  const list = (p.rate[kind] || []).filter((t) => now - t < ms);
+  if (list.length >= n) { p.rate[kind] = list; return false; }
+  list.push(now);
+  p.rate[kind] = list;
+  return true;
+}
+
 // Attache une connexion à un joueur (nouvelle arrivée ou retour)
 function attachPlayer(ws, room, p, extra = {}) {
   if (p.ws && p.ws !== ws) { send(p.ws, { t: 'replaced' }); p.ws.ctx = {}; p.ws.close(4000, 'remplacé'); }
@@ -116,6 +140,7 @@ function attachPlayer(ws, room, p, extra = {}) {
   room.pickHost();
   room.touch();
   send(ws, { t: 'joined', code: room.code, pid: p.pid, token: p.token, perm: room.perm, ...extra });
+  send(ws, { t: 'chat_log', items: room.chatLog });
   room.broadcast();
 }
 
@@ -130,6 +155,7 @@ function attachScreen(ws, room, extra = {}) {
   ws.ctx = { role: 'tv', room };
   room.touch();
   send(ws, { t: 'tv_ok', code: room.code, tvToken: room.tvToken, perm: room.perm, ...extra });
+  send(ws, { t: 'chat_log', items: room.chatLog });
   room.broadcast();
 }
 
@@ -365,6 +391,30 @@ const handlers = {
     // Touche Retour de l'appli TV : partie arrêtée, retour au salon (points gardés)
     if (m.m.t === 'tv_stop') return room.endGame(room.game.results());
     room.game.onTvMessage?.(m.m);
+  },
+
+  // ---- messages et réactions en direct (téléphones → TV et tout le monde) ----
+  chat(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p) return;
+    const text = cleanChat(m.text);
+    if (!text) return;
+    if (!allow(p, 'chat', 5, 10_000)) return err(ws, 'Doucement 😅 attends un peu avant le prochain message', 'slow');
+    // Dessin à deviner : pas de messages pendant qu'on devine (on soufflerait le mot)
+    if (room.gameId === 'dessin' && room.game?.phase === 'draw') {
+      return err(ws, 'Pas de messages pendant le dessin (ce serait de la triche 😉), les réactions oui !', 'no_chat');
+    }
+    const msg = { t: 'chat', id: ++room.chatSeq, pid: p.pid, name: p.name, emoji: p.emoji, color: p.color, text, at: Date.now() };
+    room.chatLog.push(msg);
+    if (room.chatLog.length > 30) room.chatLog.shift();
+    room.emit(msg);
+  },
+
+  react(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || !REACTIONS.includes(m.e)) return;
+    if (!allow(p, 'react', 6, 2_000)) return;
+    room.emit({ t: 'react', pid: p.pid, name: p.name, color: p.color, e: m.e });
   },
 
   ping(ws) { send(ws, { t: 'pong' }); },

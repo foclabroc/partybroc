@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/draw_board.dart';
 import '../games/tv_game.dart';
+import '../live_feed.dart';
 import '../models.dart';
 import '../music.dart';
 import '../net.dart';
@@ -104,6 +105,7 @@ class _TvScreenState extends State<TvScreen> {
   }
 
   void _onMessage(Map<String, dynamic> m) {
+    if (LiveFeed.instance.handle(m)) return;
     switch (m['t']) {
       case 'tv_ok':
         if (m['perm'] == true) {
@@ -255,6 +257,8 @@ class _TvScreenState extends State<TvScreen> {
                     onQuit: _onBack,
                     onUpdate: _update == null ? null : _offerUpdate,
                   ),
+                // Réactions et messages des joueurs, par-dessus tout
+                if (_room != null) const Positioned.fill(child: LiveLayer()),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
                 if (!kIsWeb && _room?.live != null)
                   Positioned(

@@ -27,9 +27,9 @@ Les salons vivent **en mémoire** du serveur (rapide). La base ne garde que l'hi
 ## Protocole WebSocket (JSON, champ `t`)
 
 TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`, `perm_create {code, password}`, `perm_open {code, password|key}` (salons permanents, voir plus bas), `tv_game_msg {m}` (`tv_stop` = arrêter la partie et revenir au salon ; sinon relayé à `game.onTvMessage`, ex. `drw_sync`).
-Téléphone → serveur : `join {code, name, emoji, color, photo(base64|''), password?, mtoken?}`, `resume {code, token}`, `profile {name?, emoji?, color?, photo?}`, `leave`, `ping`.
+Téléphone → serveur : `join {code, name, emoji, color, photo(base64|''), password?, mtoken?}`, `resume {code, token}`, `profile {name?, emoji?, color?, photo?}`, `leave`, `ping`, `chat {text}` (80 caractères, 5 par 10 s, refusé `no_chat` au Dessin pendant qu'on devine), `react {e}` (8 emojis `REACTIONS`, 6 par 2 s).
 Hôte seulement : `kick {pid}`, `select_game {game}`, `game_option {key, value}`, `start_game`.
-Serveur → clients : `tv_ok {code, tvToken, perm, key?}`, `joined {code, pid, token, perm, mtoken?}`, `room {room}` (diffusé à tous à chaque changement), `profile_ok`, `error {code, msg}` (`no_room`, `expired`, `refused`, `bad_profile`, `not_ready`, `not_enough`, `need_pass`, `bad_pass`, `blocked`, `bad_name`, `name_taken`, `no_db`), `kicked`, `closed`, `replaced`, `left`, `pong`.
+Serveur → clients : `tv_ok {code, tvToken, perm, key?}`, `joined {code, pid, token, perm, mtoken?}`, `room {room}` (diffusé à tous à chaque changement), `profile_ok`, `error {code, msg}` (`no_room`, `expired`, `refused`, `bad_profile`, `not_ready`, `not_enough`, `need_pass`, `bad_pass`, `blocked`, `bad_name`, `name_taken`, `no_db`), `kicked`, `closed`, `replaced`, `left`, `pong`, `chat {id, pid, name, emoji, color, text}` et `react {pid, name, color, e}` (à tous), `chat_log {items}` (30 derniers, à l'arrivée d'un joueur ou d'un écran). Côté appli : `lib/live_feed.dart` (`LiveFeed`, `LiveLayer` par-dessus la TV et le téléphone, `PhoneChatBar` en bas du téléphone).
 
 Règles du salon : code 4 consonnes, 10 joueurs max, pseudo 1–16 caractères unique (accents/majuscules ignorés), photo ≤ 60 Ko (JPEG/PNG/WebP vérifié par signature, l'appli envoie un JPEG 192×192). Le premier arrivé est l'hôte ; s'il se déconnecte, le suivant connecté prend la main. Joueur déconnecté : sa place est gardée 3 min (jeton dans le stockage du navigateur). Salon sans écran ni joueur : fermé après 15 min. Plusieurs écrans par salon (`room.tvs`). Limites par adresse IP : 5 salons ouverts, 40 connexions.
 
@@ -50,7 +50,7 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 
 ## Tests
 
-- `cd server && npm test` : salon (15 étapes), quiz (8), les 4 autres jeux + arrêt par la TV (9), salons permanents (9), délais ÷10 avec `PB_FAST=1`. Les jeux et salons permanents ont besoin de `PB_DB_URL` (fichiers `sql/01` à `06` chargés).
+- `cd server && npm test` : salon (15 étapes), quiz (8), les 4 autres jeux + arrêt par la TV (9), salons permanents (9), messages et réactions (5), délais ÷10 avec `PB_FAST=1`. Les jeux et salons permanents ont besoin de `PB_DB_URL` (fichiers `sql/01` à `06` chargés).
 - `cd app && flutter analyze` : doit être propre.
 
 ## État
@@ -68,5 +68,6 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 - **0.5.2** (28/10/2026, poussé sur main, serveur seulement) : fichiers du site en `no-cache` + ETag/304 (avant : cache d'un jour, les téléphones gardaient une vieille appli, ex. selfie qui ouvrait encore « Photo / Fichiers »). Sécurité : une adresse mal encodée (`/%E0%A4%A`) faisait planter tout le serveur (exception non rattrapée) → réponse 400 ; 5 salons et 40 connexions max par adresse IP.
 - **0.6.0** (28/10/2026, poussé sur main, `tv-latest` en versionCode 10 ; SQL `06_salons.sql` à lancer après `deploy.ps1`) : **salons permanents** avec mot de passe pour jouer avec la famille à distance (voir « Salons permanents » plus haut). Appli 0.6.0+10. Boutons des boîtes de dialogue TV à la largeur du texte (« Annuler » prenait toute la largeur).
 - **0.6.1** (28/10/2026, poussé sur main, `tv-latest` en versionCode 11) : télécommande dans les boîtes de dialogue TV : `tv/tv_keys.dart` (`tvShortcuts`, `TvKeys`) autour de l'écran **et** de chaque boîte de dialogue (elles s'ouvrent au-dessus, hors des raccourcis de l'écran) ; flèches en `DirectionalFocusIntent(ignoreTextFields: false)` (avant, coincé dans le champ « Nom du salon ») ; répétitions de touche ignorées (`includeRepeats: false`), le focus défilait parfois tout seul ; plus d'autofocus sur le champ texte (focus sur « Ouvrir »). Appli 0.6.1+11.
+- **0.7.0** (28/10/2026, pas encore poussé) : **messages et réactions en direct**. Téléphone : barre du bas avec 8 réactions d'un appui et bouton Messages (pastille non lus, phrases toutes faites, champ texte). TV (et écrans à distance) : réactions qui montent avec le pseudo, bulles des derniers messages à droite (9 s). Messages gardés en mémoire seulement. Appli 0.7.0+12.
 - **Version de l'appli** : à chaque changement de `app/`, augmenter `version:` dans `app/pubspec.yaml` (surtout le numéro après `+`), sinon la TV ne voit pas la mise à jour.
 - Tous les jeux sont faits. Idées suivantes : soirée enchaînée (plusieurs jeux d'affilée, score global), sons d'ambiance.

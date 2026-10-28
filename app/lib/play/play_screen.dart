@@ -12,6 +12,7 @@ import '../games/quiz_play.dart';
 import '../games/reflexes_ui.dart';
 import '../games/quiz_state.dart';
 import '../games/tv_game.dart';
+import '../live_feed.dart';
 import '../models.dart';
 import '../net.dart';
 import '../theme.dart';
@@ -111,6 +112,7 @@ class _PlayScreenState extends State<PlayScreen> {
 
   void _backToForm(String? msg) {
     _clearSession();
+    LiveFeed.instance.reset();
     setState(() {
       _room = null;
       _pendingJoin = false;
@@ -120,6 +122,7 @@ class _PlayScreenState extends State<PlayScreen> {
   }
 
   void _onMessage(Map<String, dynamic> m) {
+    if (LiveFeed.instance.handle(m)) return;
     switch (m['t']) {
       case 'joined':
         _sCode = m['code'] as String;
@@ -253,9 +256,16 @@ class _PlayScreenState extends State<PlayScreen> {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
-              child: Stack(children: [
-                Positioned.fill(child: _body()),
-                Positioned(top: 8, left: 0, right: 0, child: Center(child: _NetPill(state: _sock.state))),
+              child: Column(children: [
+                Expanded(
+                  child: Stack(children: [
+                    Positioned.fill(child: _body()),
+                    // réactions des autres qui montent, et le dernier message en bulle
+                    if (_inRoom) const Positioned.fill(child: LiveLayer(scale: .42, bubbleBottom: 30)),
+                    Positioned(top: 8, left: 0, right: 0, child: Center(child: _NetPill(state: _sock.state))),
+                  ]),
+                ),
+                if (_inRoom) PhoneChatBar(send: _sock.send, canChat: !_drawing),
               ]),
             ),
           ),
@@ -263,6 +273,11 @@ class _PlayScreenState extends State<PlayScreen> {
       ),
     );
   }
+
+  bool get _inRoom => _step == _Step.lobby && _room != null;
+
+  // Dessin à deviner, pendant qu'on dessine : pas de messages (on soufflerait le mot)
+  bool get _drawing => _room?.live?['id'] == 'dessin' && _room?.live?['phase'] == 'draw';
 
   Widget _body() {
     switch (_step) {

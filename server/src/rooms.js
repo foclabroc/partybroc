@@ -102,6 +102,8 @@ export class Room {
     this.gameStartedAt = 0;
     this.starting = false;
     this.usedQuiz = new Set();      // questions déjà posées ce soir
+    this.chatLog = [];              // 30 derniers messages (pour qui arrive en cours)
+    this.chatSeq = 0;
     this.used = {};                 // contenu déjà servi ce soir, par table (Set d'id)
     // Réglages choisis par l'hôte, par jeu
     this.options = Object.fromEntries(GAMES.map((g) => [g.id,
