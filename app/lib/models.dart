@@ -56,6 +56,7 @@ class RoomView {
   RoomView.fromJson(Map<String, dynamic> j)
       : code = j['code'] as String,
         phase = j['phase'] as String,
+        perm = j['perm'] == true,
         hostPid = j['hostPid'] as String?,
         tvConnected = j['tvConnected'] == true,
         selectedGame = j['selectedGame'] as String?,
@@ -67,6 +68,7 @@ class RoomView {
 
   final String code;
   final String phase;
+  final bool perm; // salon permanent (mot de passe, joueurs gardés)
   final String? hostPid;
   final bool tvConnected;
   final String? selectedGame;

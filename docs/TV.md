@@ -48,5 +48,14 @@ Si la clé est perdue : désinstaller l'appli de la TV (`adb uninstall com.focla
 
 ## Télécommande
 
-- **OK** sur « Nouveau salon » (en haut à droite) : ouvre un salon neuf.
-- **Retour** : quitte l'appli.
+- **Flèches** : passer d'un bouton à l'autre (le bouton sélectionné a un cadre blanc) ; **OK** : appuyer.
+- **Salon permanent** : ouvrir ou créer un salon avec mot de passe (nom de 5 à 12 lettres, ex. FAMILLE). La TV s'en souvient et le rouvre toute seule au démarrage. **Salon normal** : revenir à un salon à 4 lettres (le permanent reste ouvert).
+- **Retour** : pendant une partie, « Arrêter la partie ? » ; au salon, « Quitter PartyBroc TV ? ».
+
+## Jouer avec la famille à distance
+
+1. Sur la TV : **Salon permanent** → **Créer**, choisis un nom (ex. FAMILLE) et un mot de passe.
+2. La famille va sur `party.foclabroc.duckdns.org` avec son téléphone, tape le nom du salon et le mot de passe (une seule fois : le téléphone s'en souvient, avec le pseudo et le score).
+3. Pendant le jeu, leur téléphone affiche aussi l'écran du jeu en petit. Pour le voir en grand, ils ouvrent `party.foclabroc.duckdns.org/tv` sur un PC ou une TV → **Salon permanent** → **Ouvrir**.
+
+Les photos de profil ne sont jamais enregistrées sur le serveur : chaque téléphone garde la sienne.

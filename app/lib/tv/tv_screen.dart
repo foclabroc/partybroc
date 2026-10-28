@@ -6,13 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../games/dessin_ui.dart';
 import '../games/draw_board.dart';
-import '../games/droles_ui.dart';
-import '../games/quidenous_ui.dart';
-import '../games/quiz_state.dart';
-import '../games/reflexes_ui.dart';
-import '../games/quiz_tv.dart';
+import '../games/tv_game.dart';
 import '../models.dart';
 import '../music.dart';
 import '../net.dart';
@@ -69,7 +64,15 @@ class _TvScreenState extends State<TvScreen> {
     });
   }
 
+  // Salon permanent retenu par cet écran (avec sa clé, plus besoin du mot de passe)
+  String? get _permCode => _prefs?.getString('tv_perm_code');
+
   void _hello(PbSocket s) {
+    final perm = _permCode;
+    if (perm != null) {
+      s.send({'t': 'perm_open', 'code': perm, 'key': _prefs?.getString('tv_perm_key')});
+      return;
+    }
     s.send({
       't': 'tv_hello',
       'code': _prefs?.getString('tv_code'),
@@ -77,11 +80,40 @@ class _TvScreenState extends State<TvScreen> {
     });
   }
 
+  void _forgetPerm() {
+    _prefs?.remove('tv_perm_code');
+    _prefs?.remove('tv_perm_key');
+  }
+
+  // Créer ou ouvrir un salon permanent (nom + mot de passe)
+  Future<void> _permDialog() async {
+    if (_dialog) return;
+    _dialog = true;
+    final r = await showDialog<_PermRequest>(context: context, builder: (_) => const _PermDialog());
+    _dialog = false;
+    if (r == null) return;
+    setState(() => _error = null);
+    _sock.send({'t': r.create ? 'perm_create' : 'perm_open', 'code': r.code, 'password': r.password});
+  }
+
+  // Quitter le salon permanent : retour à un salon normal (le permanent reste ouvert)
+  void _leavePerm() {
+    _forgetPerm();
+    _newRoom();
+  }
+
   void _onMessage(Map<String, dynamic> m) {
     switch (m['t']) {
       case 'tv_ok':
-        _prefs?.setString('tv_code', m['code'] as String);
-        _prefs?.setString('tv_token', m['tvToken'] as String);
+        if (m['perm'] == true) {
+          _prefs?.setString('tv_perm_code', m['code'] as String);
+          if (m['key'] is String) _prefs?.setString('tv_perm_key', m['key'] as String);
+        } else {
+          _forgetPerm();
+          _prefs?.setString('tv_code', m['code'] as String);
+          _prefs?.setString('tv_token', m['tvToken'] as String);
+        }
+        setState(() => _error = null);
       case 'room':
         setState(() {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
@@ -91,7 +123,7 @@ class _TvScreenState extends State<TvScreen> {
         final live = _room!.live;
         Music.instance.play(live != null && live['phase'] != 'podium' ? 'jeu' : 'salon');
       case 'closed':
-        // Salon fermé côté serveur : on en ouvre un neuf
+        // Salon fermé côté serveur : on en ouvre un neuf (ou on rouvre le permanent)
         _prefs?.remove('tv_code');
         _prefs?.remove('tv_token');
         setState(() => _room = null);
@@ -101,21 +133,15 @@ class _TvScreenState extends State<TvScreen> {
       case 'replaced':
         setState(() => _error = 'Ce salon est maintenant affiché sur un autre écran.');
       case 'error':
+        // Salon permanent supprimé, ou clé de l'écran plus valable : retour à un salon normal
+        if (_room == null && _permCode != null && (m['code'] == 'no_room' || m['code'] == 'need_pass')) {
+          _forgetPerm();
+          _hello(_sock);
+        }
         setState(() => _error = m['msg'] as String?);
     }
   }
 
-  Widget _game(RoomView room) {
-    final live = room.live!;
-    return switch (live['id']) {
-      'quiz' => QuizTv(room: room, q: QuizState.fromJson(live)),
-      'quidenous' => QdnTv(room: room, live: live),
-      'droles' => DrlTv(room: room, live: live),
-      'reflexes' => RfxTv(room: room, live: live),
-      'dessin' => DsnTv(room: room, live: live),
-      _ => const SizedBox.shrink(),
-    };
-  }
 
   void _newRoom() {
     _prefs?.remove('tv_code');
@@ -229,9 +255,15 @@ class _TvScreenState extends State<TvScreen> {
                 if (_room == null)
                   Center(child: _waiting())
                 else if (_room!.live != null)
-                  _game(_room!)
+                  tvGameView(_room!)
                 else
-                  _Lobby(room: _room!, onNewRoom: _newRoom, onQuit: _onBack, onUpdate: _update == null ? null : _offerUpdate),
+                  _Lobby(
+                    room: _room!,
+                    onNewRoom: _room!.perm ? _leavePerm : _newRoom,
+                    onPerm: _permDialog,
+                    onQuit: _onBack,
+                    onUpdate: _update == null ? null : _offerUpdate,
+                  ),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
                 if (!kIsWeb && _room?.live != null)
                   Positioned(
@@ -270,9 +302,10 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.room, required this.onNewRoom, required this.onQuit, this.onUpdate});
+  const _Lobby({required this.room, required this.onNewRoom, required this.onPerm, required this.onQuit, this.onUpdate});
   final RoomView room;
   final VoidCallback onNewRoom;
+  final VoidCallback onPerm;
   final VoidCallback onQuit;
   final VoidCallback? onUpdate;
 
@@ -295,7 +328,9 @@ class _Lobby extends StatelessWidget {
           ],
           _MusicButton(autofocus: onUpdate == null),
           const SizedBox(width: 16),
-          TvButton(icon: Icons.refresh_rounded, label: 'Nouveau salon', onPressed: onNewRoom),
+          TvButton(icon: Icons.lock_rounded, label: 'Salon permanent', onPressed: onPerm),
+          const SizedBox(width: 16),
+          TvButton(icon: Icons.refresh_rounded, label: room.perm ? 'Salon normal' : 'Nouveau salon', onPressed: onNewRoom),
           if (!kIsWeb) ...[
             const SizedBox(width: 16),
             TvButton(icon: Icons.power_settings_new_rounded, label: 'Quitter', onPressed: onQuit),
@@ -334,9 +369,13 @@ class _Lobby extends StatelessWidget {
                     TextSpan(text: 'ou va sur ', style: Pb.t(26, color: Pb.muted)),
                     TextSpan(text: shortUrl, style: Pb.t(28, weight: 600, color: Pb.cyan)),
                   ])),
-                  Text('avec le code', style: Pb.t(26, color: Pb.muted)),
+                  Text(room.perm ? 'salon permanent 🔒' : 'avec le code', style: Pb.t(26, color: Pb.muted)),
                   const Spacer(),
                   _CodeLetters(code: room.code),
+                  if (room.perm) ...[
+                    const SizedBox(height: 14),
+                    Text('+ le mot de passe du salon', style: Pb.t(24, color: Pb.muted)),
+                  ],
                 ]),
               ),
             ),
@@ -372,21 +411,25 @@ class _CodeLetters extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+    // Nom de salon permanent (jusqu'à 12 lettres) : les cases rétrécissent
+    final long = code.length > 4;
+    return FittedBox(
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       for (final ch in code.split(''))
         Container(
-          width: 84,
+          width: long ? 64 : 84,
           height: 96,
-          margin: const EdgeInsets.symmetric(horizontal: 8),
+          margin: EdgeInsets.symmetric(horizontal: long ? 4 : 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Pb.yellow,
             borderRadius: BorderRadius.circular(22),
             boxShadow: [BoxShadow(color: Pb.yellow.withValues(alpha: .4), blurRadius: 24)],
           ),
-          child: Text(ch, style: Pb.t(64, weight: 700, color: Pb.bg, height: 1)),
+          child: Text(ch, style: Pb.t(long ? 54 : 64, weight: 700, color: Pb.bg, height: 1)),
         ),
-    ]);
+      ]),
+    );
   }
 }
 
@@ -582,6 +625,113 @@ class _MusicButtonState extends State<_MusicButton> {
   }
 }
 
+// Boutons d'une boîte de dialogue : largeur du texte (le thème les met sur toute la largeur)
+final _actionSize = OutlinedButton.styleFrom(minimumSize: const Size(0, 52));
+
+class _PermRequest {
+  const _PermRequest(this.create, this.code, this.password);
+  final bool create;
+  final String code, password;
+}
+
+/// Salon permanent : ouvrir un salon existant, ou en créer un (nom + mot de passe).
+/// Le clavier de la TV s'ouvre avec OK sur un champ.
+class _PermDialog extends StatefulWidget {
+  const _PermDialog();
+
+  @override
+  State<_PermDialog> createState() => _PermDialogState();
+}
+
+class _PermDialogState extends State<_PermDialog> {
+  bool _create = false;
+  final _code = TextEditingController();
+  final _pw = TextEditingController();
+  String? _err;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    _pw.dispose();
+    super.dispose();
+  }
+
+  static String _clean(String s) => s.toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
+
+  void _ok() {
+    final code = _clean(_code.text);
+    if (code.length < 5 || code.length > 12) return setState(() => _err = 'Le nom : 5 à 12 lettres (ex. FAMILLE)');
+    if (_pw.text.length < 4) return setState(() => _err = 'Mot de passe : 4 caractères minimum');
+    Navigator.pop(context, _PermRequest(_create, code, _pw.text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Pb.bg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text('Salon permanent 🔒', style: Pb.t(28, weight: 700)),
+      content: SizedBox(
+        width: 560,
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(
+            'Toujours ouvert, protégé par un mot de passe, et il se souvient des joueurs et de leur score. '
+            'La famille à distance l’ouvre aussi sur son PC ou sa TV (même adresse, /tv).',
+            style: Pb.t(18, color: Pb.muted),
+          ),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: _tab('Ouvrir', !_create, () => setState(() => _create = false))),
+            const SizedBox(width: 10),
+            Expanded(child: _tab('Créer', _create, () => setState(() => _create = true))),
+          ]),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _code,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            textInputAction: TextInputAction.next,
+            maxLength: 12,
+            style: Pb.t(24, weight: 600, color: Pb.yellow),
+            decoration: const InputDecoration(labelText: 'Nom du salon', hintText: 'FAMILLE', counterText: ''),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _pw,
+            obscureText: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _ok(),
+            style: Pb.t(24),
+            decoration: const InputDecoration(labelText: 'Mot de passe'),
+          ),
+          if (_err != null) ...[
+            const SizedBox(height: 10),
+            Text(_err!, style: Pb.t(18, color: Pb.red)),
+          ],
+        ]),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      actions: [
+        OutlinedButton(style: _actionSize, onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+          onPressed: _ok,
+          child: Text(_create ? 'Créer le salon' : 'Ouvrir'),
+        ),
+      ],
+    );
+  }
+
+  Widget _tab(String label, bool on, VoidCallback tap) => OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          backgroundColor: on ? Pb.pink : null,
+          minimumSize: const Size.fromHeight(48),
+        ),
+        onPressed: tap,
+        child: Text(label),
+      );
+}
+
 /// Boîte de dialogue lisible de loin, pilotable à la télécommande
 class _TvDialog extends StatelessWidget {
   const _TvDialog({required this.title, required this.text, required this.yes});
@@ -597,7 +747,7 @@ class _TvDialog extends StatelessWidget {
       actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       actions: [
         // « Annuler » a le focus : un appui sur OK par erreur ne quitte pas
-        OutlinedButton(autofocus: true, onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+        OutlinedButton(style: _actionSize, autofocus: true, onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
         FilledButton(
           style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
           onPressed: () => Navigator.pop(context, true),
@@ -693,7 +843,7 @@ class _UpdateDialogState extends State<_UpdateDialog> with WidgetsBindingObserve
       actions: busy
           ? const []
           : [
-              OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Plus tard')),
+              OutlinedButton(style: _actionSize, onPressed: () => Navigator.pop(context), child: const Text('Plus tard')),
               if (_needPermission)
                 FilledButton(autofocus: true, onPressed: openInstallSettings, child: const Text('Ouvrir les réglages'))
               else

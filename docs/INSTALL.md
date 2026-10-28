@@ -30,6 +30,7 @@ psql -h localhost -U partybroc -d party -f 02_quiz.sql
 psql -h localhost -U partybroc -d party -f 03_quidenous.sql
 psql -h localhost -U partybroc -d party -f 04_droles.sql
 psql -h localhost -U partybroc -d party -f 05_dessin.sql
+psql -h localhost -U partybroc -d party -f 06_salons.sql
 Remove-Item Env:PGPASSWORD
 ```
 

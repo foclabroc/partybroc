@@ -53,8 +53,8 @@ export function decodePhoto(b64) {
 }
 
 class Player {
-  constructor({ name, emoji, color, photo }) {
-    this.pid = rid(4);
+  constructor({ name, emoji, color, photo }, pid) {
+    this.pid = pid || rid(4);       // salon permanent : identifiant du membre (stable)
     this.token = rid(16);           // permet de revenir après une coupure
     this.name = name;
     this.emoji = emoji;
@@ -83,10 +83,11 @@ class Player {
 }
 
 export class Room {
-  constructor(code) {
+  constructor(code, perm = false) {
     this.code = code;
+    this.perm = perm;               // salon permanent (mot de passe, joueurs gardés en base)
     this.tvToken = rid(16);
-    this.tv = null;                 // WebSocket de la TV
+    this.tvs = new Set();           // écrans connectés (la TV, et l'écran de chaque famille à distance)
     this.players = new Map();       // pid -> Player
     this.hostPid = null;
     this.phase = 'lobby';
@@ -112,8 +113,9 @@ export class Room {
     return {
       code: this.code,
       phase: this.phase,
+      perm: this.perm,
       hostPid: this.hostPid,
-      tvConnected: this.tv !== null,
+      tvConnected: this.tvs.size > 0,
       selectedGame: this.selectedGame,
       games: GAMES.map(({ id, title, emoji, min, ready, pitch, options }) => ({ id, title, emoji, min, ready, pitch, options: options || {} })),
       options: this.options[this.selectedGame] || {},
@@ -127,7 +129,7 @@ export class Room {
 
   broadcast() {
     const room = JSON.stringify(this.view());
-    if (this.tv) send(this.tv, `{"t":"room","room":${room}}`);
+    for (const tv of this.tvs) send(tv, `{"t":"room","room":${room}}`);
     for (const p of this.players.values()) {
       if (!p.ws) continue;
       // Chaque téléphone reçoit en plus son état perso dans le jeu (« you »)
@@ -138,12 +140,13 @@ export class Room {
 
   emit(msg, exceptPid) {
     const s = JSON.stringify(msg);
-    if (this.tv) send(this.tv, s);
+    for (const tv of this.tvs) send(tv, s);
     for (const p of this.players.values()) if (p.ws && p.pid !== exceptPid) send(p.ws, s);
   }
 
   sendTo(target, msg) {
-    const ws = target === 'tv' ? this.tv : this.players.get(target)?.ws;
+    if (target === 'tv') { for (const tv of this.tvs) send(tv, msg); return; }
+    const ws = this.players.get(target)?.ws;
     if (ws) send(ws, msg);
   }
 
@@ -184,6 +187,13 @@ export class Room {
     }
     db.gameSaved(this.partyId, this.gameId, this.gameStartedAt, results || []);
     for (const p of this.players.values()) db.playerSeen(this.partyId, p.pid, p.name, p.score);
+    // Salon permanent : le score total de chaque joueur est gardé
+    if (this.perm) {
+      for (const r of results || []) {
+        const p = this.players.get(r.pid);
+        if (p) db.memberSaved(this.code, p, true);
+      }
+    }
     this.game = null;
     this.gameId = null;
     this.phase = 'lobby';
@@ -197,7 +207,7 @@ export class Room {
     return n;
   }
 
-  isIdle() { return this.tv === null && this.connectedCount() === 0; }
+  isIdle() { return this.tvs.size === 0 && this.connectedCount() === 0; }
 
   touch() {
     if (!this.isIdle()) this.idleSince = Date.now();
@@ -217,10 +227,11 @@ export class Room {
     return false;
   }
 
-  addPlayer(profile) {
+  addPlayer(profile, pid, score = 0) {
     if (this.players.size >= config.maxPlayers) throw new Error(`Salon complet (${config.maxPlayers} joueurs max)`);
     if (this.nameTaken(profile.name)) throw new Error('Ce pseudo est déjà pris dans ce salon');
-    const p = new Player(profile);
+    const p = new Player(profile, pid);
+    p.score = score;
     this.players.set(p.pid, p);
     this.maxSeen = Math.max(this.maxSeen, this.players.size);
     if (!this.hostPid) this.hostPid = p.pid;
@@ -271,13 +282,25 @@ export class RoomManager {
     return this.rooms.get(code.trim().toUpperCase()) || null;
   }
 
-  async create() {
+  async create(permCode) {
     if (this.rooms.size >= config.maxRooms) throw new Error('Trop de salons ouverts, réessaie plus tard');
-    const room = new Room(newCode(new Set(this.rooms.keys())));
+    const room = new Room(permCode || newCode(new Set(this.rooms.keys())), !!permCode);
     this.rooms.set(room.code, room);
     room.partyId = await db.partyOpened(room.code);
     console.log(`[salon] ${room.code} ouvert`);
     return room;
+  }
+
+  // Salon permanent : déjà en mémoire, ou ouvert maintenant (une seule fois même si
+  // plusieurs personnes arrivent en même temps)
+  async openPerm(code) {
+    const cur = this.rooms.get(code);
+    if (cur) return cur;
+    this.opening ??= new Map();
+    if (!this.opening.has(code)) {
+      this.opening.set(code, this.create(code).finally(() => this.opening.delete(code)));
+    }
+    return this.opening.get(code);
   }
 
   close(room) {
@@ -288,9 +311,10 @@ export class RoomManager {
     const saves = [];
     for (const p of room.players.values()) {
       saves.push(db.playerSeen(room.partyId, p.pid, p.name, p.score));
+      if (room.perm) saves.push(db.memberSaved(room.code, p));
       if (p.ws) send(p.ws, { t: 'closed' });
     }
-    if (room.tv) send(room.tv, { t: 'closed' });
+    for (const tv of room.tvs) send(tv, { t: 'closed' });
     saves.push(db.partyClosed(room.partyId, room.maxSeen));
     console.log(`[salon] ${room.code} fermé`);
     return Promise.all(saves);

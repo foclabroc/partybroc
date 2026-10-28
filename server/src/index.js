@@ -2,12 +2,16 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { db } from './db.js';
 import {
   RoomManager, send, cleanName, cleanEmoji, decodePhoto, gameById, COLORS,
 } from './rooms.js';
+import {
+  permCode, isPermCode, checkPassword, hashPassword, passwordOk, newToken, sha, blocked, failed, mayCreate,
+} from './perm.js';
 
 const rooms = new RoomManager();
 
@@ -65,7 +69,7 @@ function handleHttp(req, res) {
   }
 
   // Photo de profil : /a/CODE/pid/version
-  const m = url.pathname.match(/^\/a\/([A-Z]{4})\/([0-9a-f]{8})\/\d+$/);
+  const m = url.pathname.match(/^\/a\/([A-Z]{4,12})\/([0-9a-f]{8})\/\d+$/);
   if (m) {
     const p = rooms.get(m[1])?.players.get(m[2]);
     if (!p || !p.photo) { res.writeHead(404).end(); return; }
@@ -104,45 +108,164 @@ function readProfile(m) {
 }
 
 // Attache une connexion à un joueur (nouvelle arrivée ou retour)
-function attachPlayer(ws, room, p) {
+function attachPlayer(ws, room, p, extra = {}) {
   if (p.ws && p.ws !== ws) { send(p.ws, { t: 'replaced' }); p.ws.ctx = {}; p.ws.close(4000, 'remplacé'); }
   p.ws = ws;
   p.leftAt = 0;
   ws.ctx = { role: 'player', room, player: p };
   room.pickHost();
   room.touch();
-  send(ws, { t: 'joined', code: room.code, pid: p.pid, token: p.token });
+  send(ws, { t: 'joined', code: room.code, pid: p.pid, token: p.token, perm: room.perm, ...extra });
   room.broadcast();
+}
+
+// Un écran (TV, PC de la famille…) affiche ce salon ; il quitte celui d'avant
+function attachScreen(ws, room, extra = {}) {
+  const old = ws.ctx?.room;
+  if (old && old !== room) {
+    old.tvs.delete(ws);
+    if (!old.closed) { old.touch(); old.broadcast(); }
+  }
+  room.tvs.add(ws);
+  ws.ctx = { role: 'tv', room };
+  room.touch();
+  send(ws, { t: 'tv_ok', code: room.code, tvToken: room.tvToken, perm: room.perm, ...extra });
+  room.broadcast();
+}
+
+// Mot de passe d'un salon permanent, avec blocage après trop d'essais ratés
+async function passwordAccepted(ws, perm, pw) {
+  if (blocked(ws.ip)) throw Object.assign(new Error("Trop d'essais ratés, réessaie dans un quart d'heure"), { code: 'blocked' });
+  if (await passwordOk(pw, perm.pass_hash)) return true;
+  failed(ws.ip);
+  return false;
+}
+
+// Salon permanent trouvé en base, ou message d'erreur déjà envoyé (renvoie null)
+async function findPerm(ws, code) {
+  if (!db.enabled()) { err(ws, 'Salons permanents indisponibles (pas de base)', 'no_db'); return null; }
+  const perm = await db.permGet(code);
+  if (perm === null) { err(ws, 'Base de données injoignable, réessaie', 'no_db'); return null; }
+  if (!perm) { err(ws, 'Aucun salon avec ce nom', 'no_room'); return null; }
+  return perm;
+}
+
+// Un téléphone entre dans un salon permanent : jeton gardé par le téléphone, ou mot de passe
+async function permJoin(ws, code, m) {
+  const live = rooms.get(code);
+  const back = live?.findByToken(m.token);
+  if (back) return attachPlayer(ws, live, back);
+  const perm = await findPerm(ws, code);
+  if (!perm) return;
+  let profile;
+  try { profile = readProfile(m); } catch (e) { return err(ws, e.message, 'bad_profile'); }
+  const members = await db.members(code);
+  if (members === null) return err(ws, 'Base de données injoignable, réessaie', 'no_db');
+  let member = typeof m.mtoken === 'string' && m.mtoken ? members.find((x) => x.token_hash === sha(m.mtoken)) : null;
+  if (!member) {
+    if (typeof m.password !== 'string' || !m.password) return err(ws, 'Mot de passe du salon', 'need_pass');
+    try {
+      if (!(await passwordAccepted(ws, perm, m.password))) return err(ws, 'Mauvais mot de passe', 'bad_pass');
+    } catch (e) { return err(ws, e.message, e.code || 'refused'); }
+  }
+  const room = await rooms.openPerm(code);
+  // Pas de jeton (nouveau téléphone, cache vidé) : on retrouve le joueur à son pseudo,
+  // s'il n'est pas déjà dans le salon, pour garder son score
+  const key = (n) => n.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s/g, '');
+  if (!member) member = members.find((x) => key(x.name) === key(profile.name) && !room.players.get(x.member_id)?.connected);
+  let mtoken = member && m.mtoken && member.token_hash === sha(m.mtoken) ? m.mtoken : null;
+  if (!member) {
+    if (members.length >= config.maxMembers) return err(ws, 'Ce salon a trop de joueurs enregistrés', 'refused');
+    if (room.nameTaken(profile.name)) return err(ws, 'Ce pseudo est déjà pris dans ce salon', 'refused');
+    mtoken = newToken();
+    member = { member_id: crypto.randomBytes(4).toString('hex'), score: 0 };
+    await db.memberCreate(code, { pid: member.member_id, ...profile, tokenHash: sha(mtoken) });
+  } else if (!mtoken) {
+    mtoken = newToken();
+    await db.memberToken(code, member.member_id, sha(mtoken));
+  }
+  let p = room.players.get(member.member_id);
+  if (p) {
+    // Déjà dans le salon (autre onglet, retour pendant la partie) : on reprend sa place
+    if (room.nameTaken(profile.name, p.pid)) return err(ws, 'Ce pseudo est déjà pris dans ce salon', 'refused');
+    Object.assign(p, { name: profile.name, emoji: profile.emoji, color: profile.color });
+    if (profile.photo) { p.photo = profile.photo; p.photoV++; }
+  } else {
+    try { p = room.addPlayer(profile, member.member_id, Number(member.score) || 0); } catch (e) { return err(ws, e.message, 'refused'); }
+    console.log(`[salon] ${room.code} + ${p.name} (membre)`);
+  }
+  db.memberSaved(code, p);
+  db.permUsed(code);
+  attachPlayer(ws, room, p, { mtoken });
 }
 
 const handlers = {
   // ---- TV ----
   async tv_hello(ws, m) {
     let room = rooms.get(m.code);
-    if (room && room.tvToken === m.tvToken) {
-      if (room.tv && room.tv !== ws) { send(room.tv, { t: 'replaced' }); room.tv.ctx = {}; room.tv.close(4000, 'remplacé'); }
-    } else {
+    if (!room || room.tvToken !== m.tvToken) {
       if (roomsOpenedBy(ws.ip) >= config.maxRoomsPerIp) return err(ws, 'Trop de salons ouverts depuis ta connexion', 'refused');
       room = await rooms.create();
       room.ip = ws.ip;
     }
-    room.tv = ws;
-    ws.ctx = { role: 'tv', room };
-    room.touch();
-    send(ws, { t: 'tv_ok', code: room.code, tvToken: room.tvToken });
-    room.broadcast();
+    attachScreen(ws, room);
   },
 
   tv_new(ws) {
-    // La TV demande un nouveau salon : l'ancien est fermé
+    // La TV demande un nouveau salon : l'ancien est fermé (un salon permanent, lui, reste)
     const { room } = ws.ctx;
-    if (room) { room.tv = null; rooms.close(room); }
+    if (room) {
+      room.tvs.delete(ws);
+      if (!room.perm && room.tvs.size === 0) rooms.close(room);
+      else { room.touch(); room.broadcast(); }
+    }
     ws.ctx = {};
     return handlers.tv_hello(ws, {});
   },
 
+  // Créer un salon permanent (depuis un écran) : nom + mot de passe
+  async perm_create(ws, m) {
+    const code = permCode(m.code);
+    if (!isPermCode(code)) return err(ws, 'Le nom du salon : 5 à 12 lettres', 'bad_name');
+    let pw;
+    try { pw = checkPassword(m.password); } catch (e) { return err(ws, e.message, 'bad_pass'); }
+    if (!db.enabled()) return err(ws, 'Salons permanents indisponibles (pas de base)', 'no_db');
+    const n = await db.permCount();
+    if (n === null) return err(ws, 'Base de données injoignable, réessaie', 'no_db');
+    if (n >= config.maxPermRooms) return err(ws, 'Trop de salons permanents', 'refused');
+    if (!mayCreate(ws.ip)) return err(ws, 'Trop de salons créés, réessaie dans une heure', 'refused');
+    const ok = await db.permCreate(code, await hashPassword(pw));
+    if (ok === null) return err(ws, 'Base de données injoignable, réessaie', 'no_db');
+    if (!ok) return err(ws, 'Ce nom de salon est déjà pris', 'name_taken');
+    console.log(`[salon] ${code} créé (permanent)`);
+    const key = newToken();
+    await db.screenAdd(code, sha(key));
+    attachScreen(ws, await rooms.openPerm(code), { key });
+  },
+
+  // Afficher un salon permanent sur cet écran : clé déjà reçue, ou mot de passe
+  async perm_open(ws, m) {
+    const code = permCode(m.code);
+    if (!isPermCode(code)) return err(ws, 'Aucun salon avec ce nom', 'no_room');
+    const perm = await findPerm(ws, code);
+    if (!perm) return;
+    let key = typeof m.key === 'string' && m.key && await db.screenOk(code, sha(m.key)) ? m.key : null;
+    if (!key) {
+      if (typeof m.password !== 'string' || !m.password) return err(ws, 'Mot de passe du salon', 'need_pass');
+      try {
+        if (!(await passwordAccepted(ws, perm, m.password))) return err(ws, 'Mauvais mot de passe', 'bad_pass');
+      } catch (e) { return err(ws, e.message, e.code || 'refused'); }
+      key = newToken();
+      await db.screenAdd(code, sha(key));
+    }
+    db.permUsed(code);
+    attachScreen(ws, await rooms.openPerm(code), { key });
+  },
+
   // ---- téléphones ----
   join(ws, m) {
+    const pc = permCode(m.code);
+    if (isPermCode(pc)) return permJoin(ws, pc, m);
     const room = rooms.get(m.code);
     if (!room) return err(ws, 'Aucun salon avec ce code', 'no_room');
     const back = room.findByToken(m.token);
@@ -177,6 +300,7 @@ const handlers = {
       if (m.emoji !== undefined) p.emoji = cleanEmoji(m.emoji);
       if (Number.isInteger(m.color)) p.color = ((m.color % COLORS) + COLORS) % COLORS;
     } catch (e) { return err(ws, e.message, 'bad_profile'); }
+    if (room.perm) db.memberSaved(room.code, p);
     send(ws, { t: 'profile_ok' });
     room.broadcast();
   },
@@ -278,7 +402,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     const { role, room, player } = ws.ctx || {};
     if (!room || room.closed) return;
-    if (role === 'tv' && room.tv === ws) room.tv = null;
+    if (role === 'tv') room.tvs.delete(ws);
     if (role === 'player' && player && player.ws === ws) {
       player.ws = null;
       player.leftAt = Date.now();

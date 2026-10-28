@@ -18,6 +18,9 @@ export const config = {
   // Par adresse IP (tous les appareils d'une maison partagent la même)
   maxRoomsPerIp: 5,
   maxConnsPerIp: 40,
+  // Salons permanents (en base) et joueurs gardés par salon
+  maxPermRooms: 30,
+  maxMembers: 60,
   maxPlayers: 10,
   // Un joueur déconnecté garde sa place ce temps-là (téléphone en veille, etc.)
   playerGraceMs: 3 * 60 * 1000,

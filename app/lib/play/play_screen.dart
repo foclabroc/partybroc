@@ -11,6 +11,7 @@ import '../games/quidenous_ui.dart';
 import '../games/quiz_play.dart';
 import '../games/reflexes_ui.dart';
 import '../games/quiz_state.dart';
+import '../games/tv_game.dart';
 import '../models.dart';
 import '../net.dart';
 import '../theme.dart';
@@ -38,6 +39,8 @@ class _PlayScreenState extends State<PlayScreen> {
   _Step _step = _Step.loading;
   Profile _profile = Profile();
   late final _code = TextEditingController(text: (widget.initialCode ?? '').toUpperCase());
+  final _pw = TextEditingController();
+  bool _showScreen = true; // salon permanent : l'écran du jeu aussi sur le téléphone
   String? _formError;
 
   // Session en cours (pour revenir après une coupure)
@@ -62,6 +65,7 @@ class _PlayScreenState extends State<PlayScreen> {
     final prefs = await SharedPreferences.getInstance();
     _prefs = prefs;
     _profile = await Profile.load(prefs);
+    _showScreen = prefs.getBool('show_screen') ?? true;
     _sCode = prefs.getString('s_code');
     _sToken = prefs.getString('s_token');
     final wanted = widget.initialCode?.toUpperCase();
@@ -77,9 +81,25 @@ class _PlayScreenState extends State<PlayScreen> {
     if (_sCode != null && _sToken != null) {
       s.send({'t': 'resume', 'code': _sCode, 'token': _sToken});
     } else if (_pendingJoin) {
-      s.send({'t': 'join', 'code': _code.text.trim(), ..._profile.toMessage()});
+      s.send(_joinMsg(_cleanCode(_code.text)));
     }
   }
+
+  static String _cleanCode(String s) => s.trim().toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
+  static bool _isPerm(String code) => code.length >= 5;
+
+  // Jeton de membre d'un salon permanent : plus besoin du mot de passe la fois suivante
+  String? _mtoken(String code) => _prefs?.getString('m_$code');
+
+  Map<String, dynamic> _joinMsg(String code) => {
+        't': 'join',
+        'code': code,
+        if (_isPerm(code)) ...{
+          'password': _pw.text,
+          if (_mtoken(code) != null) 'mtoken': _mtoken(code),
+        },
+        ..._profile.toMessage(),
+      };
 
   void _clearSession() {
     _sCode = null;
@@ -107,6 +127,8 @@ class _PlayScreenState extends State<PlayScreen> {
         _myPid = m['pid'] as String;
         _prefs?.setString('s_code', _sCode!);
         _prefs?.setString('s_token', _sToken!);
+        if (m['mtoken'] is String) _prefs?.setString('m_${_sCode!}', m['mtoken'] as String);
+        _pw.clear();
         _pendingJoin = false;
         HapticFeedback.mediumImpact();
         setState(() => _step = _Step.lobby);
@@ -132,6 +154,18 @@ class _PlayScreenState extends State<PlayScreen> {
       case 'error':
         final code = m['code'] as String?;
         final msg = m['msg'] as String? ?? 'Erreur';
+        // Salon permanent : la place a expiré (serveur redémarré…) mais le téléphone est
+        // membre : on rentre tout seul, sans redemander le mot de passe
+        final was = _sCode;
+        if (code == 'expired' && was != null && _isPerm(was) && _mtoken(was) != null && _prefs != null) {
+          _clearSession();
+          _code.text = was;
+          _pendingJoin = true;
+          setState(() => _step = _Step.joining);
+          _sock.send(_joinMsg(was));
+          return;
+        }
+        if (code == 'need_pass' && _isPerm(_cleanCode(_code.text))) _prefs?.remove('m_${_cleanCode(_code.text)}');
         if (_step == _Step.lobby && code != 'expired' && code != 'no_room') {
           _toast(msg);
         } else {
@@ -148,8 +182,11 @@ class _PlayScreenState extends State<PlayScreen> {
   }
 
   Future<void> _join() async {
-    final code = _code.text.trim().toUpperCase();
-    if (code.length != 4) return setState(() => _formError = 'Le code fait 4 lettres (il est affiché sur la TV)');
+    final code = _cleanCode(_code.text);
+    if (code.length < 4 || code.length > 12) {
+      return setState(() => _formError = 'Le code fait 4 lettres (il est affiché sur la TV), ou c’est le nom d’un salon permanent');
+    }
+    if (_isPerm(code) && _pw.text.isEmpty && _mtoken(code) == null) return setState(() => _formError = 'Mot de passe du salon');
     if (_profile.name.trim().isEmpty) return setState(() => _formError = 'Choisis un pseudo');
     FocusScope.of(context).unfocus();
     await _profile.save(_prefs!);
@@ -160,7 +197,7 @@ class _PlayScreenState extends State<PlayScreen> {
       _pendingJoin = true;
     });
     if (_sock.state.value == NetState.online) {
-      _sock.send({'t': 'join', 'code': code, ..._profile.toMessage()});
+      _sock.send(_joinMsg(code));
     } else {
       _sock.kick();
     }
@@ -204,6 +241,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _life.dispose();
     _sock.dispose();
     _code.dispose();
+    _pw.dispose();
     super.dispose();
   }
 
@@ -246,33 +284,78 @@ class _PlayScreenState extends State<PlayScreen> {
         final room = _room;
         if (room == null) return const Center(child: CircularProgressIndicator(color: Pb.pink));
         final live = room.live;
-        final host = room.hostPid == _myPid;
-        switch (live?['id']) {
-          case 'quiz':
-            return QuizPlay(
-              room: room,
-              q: QuizState.fromJson(live!),
-              you: _you == null ? null : QuizYou.fromJson(_you!),
-              isHost: host,
-              send: _sock.send,
-            );
-          case 'quidenous':
-            return QdnPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
-          case 'droles':
-            return DrlPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
-          case 'reflexes':
-            return RfxPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
-          case 'dessin':
-            return DsnPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
-        }
+        if (live != null && room.perm) return _withScreen(room, _play(room));
+        if (live != null) return _play(room);
         return _LobbyView(
           room: room,
           myPid: _myPid,
           onEdit: _editProfile,
           onLeave: _leave,
           send: _sock.send,
+          showScreen: _showScreen,
+          onShowScreen: _setShowScreen,
         );
     }
+  }
+
+  void _setShowScreen(bool v) {
+    _prefs?.setBool('show_screen', v);
+    setState(() => _showScreen = v);
+  }
+
+  // Salon permanent (joueurs à distance) : ce que montre la TV, en petit au-dessus des
+  // commandes. Un appui le masque ou le réaffiche.
+  Widget _withScreen(RoomView room, Widget play) {
+    return Column(children: [
+      const SizedBox(height: 34),
+      if (_showScreen)
+        GestureDetector(
+          onTap: () => _setShowScreen(false),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: PartyBackground(
+                  child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: tvGameView(room))),
+                ),
+              ),
+            ),
+          ),
+        )
+      else
+        TextButton.icon(
+          onPressed: () => _setShowScreen(true),
+          icon: const Icon(Icons.tv_rounded, size: 18),
+          label: Text('Voir l’écran du jeu', style: Pb.t(15, weight: 600)),
+        ),
+      Expanded(child: play),
+    ]);
+  }
+
+  Widget _play(RoomView room) {
+    final live = room.live;
+    final host = room.hostPid == _myPid;
+    switch (live?['id']) {
+      case 'quiz':
+        return QuizPlay(
+          room: room,
+          q: QuizState.fromJson(live!),
+          you: _you == null ? null : QuizYou.fromJson(_you!),
+          isHost: host,
+          send: _sock.send,
+        );
+      case 'quidenous':
+        return QdnPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'droles':
+        return DrlPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'reflexes':
+        return RfxPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'dessin':
+        return DsnPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+    }
+    return const SizedBox.shrink();
   }
 
   Widget _form() {
@@ -281,20 +364,36 @@ class _PlayScreenState extends State<PlayScreen> {
       children: [
         const Center(child: PbLogo(size: 38)),
         const SizedBox(height: 26),
-        Text('Code affiché sur la TV', style: Pb.t(16, weight: 600, color: Pb.muted)),
+        Text('Code affiché sur la TV (ou nom du salon permanent)', style: Pb.t(16, weight: 600, color: Pb.muted)),
         const SizedBox(height: 8),
         TextField(
           controller: _code,
-          maxLength: 4,
+          maxLength: 12,
+          onChanged: (_) => setState(() {}),
           textAlign: TextAlign.center,
           textCapitalization: TextCapitalization.characters,
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp('[a-zA-Z]')),
             TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
           ],
-          style: Pb.t(40, weight: 700, color: Pb.yellow).copyWith(letterSpacing: 14),
+          style: Pb.t(_code.text.length > 6 ? 30 : 40, weight: 700, color: Pb.yellow)
+              .copyWith(letterSpacing: _code.text.length > 6 ? 4 : 14),
           decoration: const InputDecoration(hintText: 'ABCD', counterText: ''),
         ),
+        // Salon permanent : mot de passe (sauf si ce téléphone y est déjà venu)
+        if (_isPerm(_cleanCode(_code.text))) ...[
+          const SizedBox(height: 14),
+          TextField(
+            controller: _pw,
+            obscureText: true,
+            style: Pb.t(20),
+            decoration: InputDecoration(
+              labelText: 'Mot de passe du salon 🔒',
+              helperText: _mtoken(_cleanCode(_code.text)) != null ? 'Tu es déjà venu ici : pas besoin du mot de passe' : null,
+              helperStyle: Pb.t(14, color: Pb.green),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         ProfileEditor(
           profile: _profile,
@@ -357,8 +456,12 @@ class _LobbyView extends StatelessWidget {
     required this.onEdit,
     required this.onLeave,
     required this.send,
+    required this.showScreen,
+    required this.onShowScreen,
   });
 
+  final bool showScreen;
+  final ValueChanged<bool> onShowScreen;
   final RoomView room;
   final String? myPid;
   final VoidCallback onEdit;
@@ -391,9 +494,33 @@ class _LobbyView extends StatelessWidget {
               IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_rounded, color: Pb.muted), tooltip: 'Modifier'),
             ]),
           ),
-        if (!room.tvConnected) ...[
+        if (!room.tvConnected && !room.perm) ...[
           const SizedBox(height: 12),
           Text('📺 La TV n’est plus connectée au salon', textAlign: TextAlign.center, style: Pb.t(15, color: Pb.yellow)),
+        ],
+        if (room.perm) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+            decoration: BoxDecoration(color: Pb.card.withValues(alpha: .7), borderRadius: BorderRadius.circular(18)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('🔒 Salon permanent ${room.code}', style: Pb.t(16, weight: 600)),
+              const SizedBox(height: 2),
+              Text(
+                'Pas de TV chez toi ? Le jeu s’affiche sur ton téléphone. Pour le voir en grand : '
+                'ouvre ${serverBase().host}/tv sur un PC ou une TV → Salon permanent → Ouvrir.',
+                style: Pb.t(14, color: Pb.muted),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: showScreen,
+                activeThumbColor: Pb.pink,
+                onChanged: onShowScreen,
+                title: Text('Écran du jeu sur mon téléphone', style: Pb.t(15, weight: 600)),
+              ),
+            ]),
+          ),
         ],
         const SizedBox(height: 22),
 
@@ -474,7 +601,7 @@ class _LobbyView extends StatelessWidget {
               Text(game?.title ?? '', style: Pb.t(22, weight: 700)),
               const SizedBox(height: 6),
               Text(
-                '${room.host?.name ?? 'L’hôte'} choisit le jeu…\nRegarde la TV !',
+                '${room.host?.name ?? 'L’hôte'} choisit le jeu…\n${room.perm ? 'Ça va commencer !' : 'Regarde la TV !'}',
                 textAlign: TextAlign.center,
                 style: Pb.t(16, color: Pb.muted),
               ),
