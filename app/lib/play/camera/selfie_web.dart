@@ -21,10 +21,9 @@ class SelfieUnavailable implements Exception {
 /// navigateur n'est pas tué en arrière-plan), affiche l'aperçu et renvoie un
 /// JPEG carré. null = annulé.
 Future<Uint8List?> takeSelfie(BuildContext context) async {
-  final devices = web.window.navigator.mediaDevices;
   web.MediaStream stream;
   try {
-    stream = await devices
+    stream = await web.window.navigator.mediaDevices
         .getUserMedia(web.MediaStreamConstraints(
           audio: false.toJS,
           video: {
@@ -35,7 +34,14 @@ Future<Uint8List?> takeSelfie(BuildContext context) async {
         ))
         .toDart;
   } catch (e) {
-    throw SelfieUnavailable('$e');
+    final s = '$e';
+    throw SelfieUnavailable(s.contains('NotAllowed') || s.contains('Permission')
+        ? 'Accès à la caméra refusé. Autorise la caméra pour ce site dans les réglages du navigateur (le cadenas à côté de l’adresse), ou prends une photo depuis la Galerie.'
+        : s.contains('NotFound') || s.contains('Overconstrained')
+            ? 'Pas de caméra trouvée sur ce téléphone. Utilise la Galerie.'
+            : s.contains('NotReadable')
+                ? 'La caméra est déjà utilisée par une autre appli. Ferme-la puis réessaie.'
+                : 'Caméra indisponible dans ce navigateur. Utilise la Galerie.');
   }
 
   final video = web.HTMLVideoElement()

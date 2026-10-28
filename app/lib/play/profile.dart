@@ -52,14 +52,12 @@ class Profile {
   Profile copy() => Profile(name: name, emoji: emoji, color: color, photo: photo);
 }
 
-/// Selfie : caméra dans la page si possible, sinon l'appli photo du téléphone.
+/// Selfie pris DANS la page. Jamais l'appli photo du téléphone : sur Android, le
+/// navigateur est souvent fermé pendant qu'elle est ouverte et la page revient vide.
+/// Lève SelfieUnavailable (avec un message clair) si la caméra n'est pas utilisable.
 Future<Uint8List?> takeProfileSelfie(BuildContext context) async {
-  try {
-    final bytes = await takeSelfie(context);
-    return bytes == null ? null : squarePhoto(bytes);
-  } on SelfieUnavailable {
-    return pickProfilePhoto(ImageSource.camera);
-  }
+  final bytes = await takeSelfie(context);
+  return bytes == null ? null : squarePhoto(bytes);
 }
 
 /// Prend une photo (ou la choisit), la recadre en carré et la réduit à 192 px.
@@ -104,6 +102,10 @@ class _ProfileEditorState extends State<ProfileEditor> {
     try {
       final bytes = src == ImageSource.camera ? await takeProfileSelfie(context) : await pickProfilePhoto(src);
       if (bytes != null) p.photo = bytes;
+    } on SelfieUnavailable catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.reason), duration: const Duration(seconds: 6)));
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible de lire cette photo')));

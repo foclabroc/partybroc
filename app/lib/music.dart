@@ -50,6 +50,24 @@ class Music {
     if (!muted && _playing == null && _want != null) await _start();
   }
 
+  /// Appli en arrière-plan : on coupe le son ; au retour on le remet
+  Future<void> pause() async {
+    try {
+      await _player.pause();
+    } catch (_) {}
+  }
+
+  Future<void> resume() async {
+    if (muted || _want == null) return;
+    try {
+      if (_playing == _want) {
+        await _player.resume();
+      } else {
+        await _start();
+      }
+    } catch (_) {}
+  }
+
   Future<bool> toggle() async {
     muted = !muted;
     try {

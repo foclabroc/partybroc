@@ -26,7 +26,7 @@ Les salons vivent **en mémoire** du serveur (rapide). La base ne garde que l'hi
 
 ## Protocole WebSocket (JSON, champ `t`)
 
-TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`, `tv_game_msg {m}` (relayé à `game.onTvMessage`, ex. `drw_sync`).
+TV → serveur : `tv_hello {code?, tvToken?}` (retrouve son salon après rechargement, sinon en crée un), `tv_new`, `tv_game_msg {m}` (`tv_stop` = arrêter la partie et revenir au salon ; sinon relayé à `game.onTvMessage`, ex. `drw_sync`).
 Téléphone → serveur : `join {code, name, emoji, color, photo(base64|'')}`, `resume {code, token}`, `profile {name?, emoji?, color?, photo?}`, `leave`, `ping`.
 Hôte seulement : `kick {pid}`, `select_game {game}`, `game_option {key, value}`, `start_game`.
 Serveur → clients : `tv_ok`, `joined {code, pid, token}`, `room {room}` (diffusé à tous à chaque changement), `profile_ok`, `error {code, msg}` (`no_room`, `expired`, `refused`, `bad_profile`, `not_ready`, `not_enough`), `kicked`, `closed`, `replaced`, `left`, `pong`.
@@ -48,7 +48,7 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 
 ## Tests
 
-- `cd server && npm test` : salon (15 étapes), quiz (8) et les 4 autres jeux (8), délais ÷10 avec `PB_FAST=1`. Les jeux ont besoin de `PB_DB_URL` (contenu en base, fichiers `sql/02` à `05` chargés).
+- `cd server && npm test` : salon (15 étapes), quiz (8) et les 4 autres jeux + arrêt par la TV (9), délais ÷10 avec `PB_FAST=1`. Les jeux ont besoin de `PB_DB_URL` (contenu en base, fichiers `sql/02` à `05` chargés).
 - `cd app && flutter analyze` : doit être propre.
 
 ## État
@@ -60,4 +60,5 @@ Catalogue dans `server/src/games/index.js` (`ready: false` = affiché « Bientô
 - **0.3.0** (27/10/2026, poussé sur main) : appli Android TV « PartyBroc TV » (le navigateur de la TV de l'utilisateur, ARM 32 bits, n'affichait qu'un écran violet). Icône « PB » et bannière TV générées.
 - **0.3.1** (27/10/2026, poussé sur main) : selfie pris **dans la page** (`lib/play/camera/selfie_web.dart`, getUserMedia, aperçu rond en miroir, bouton Prendre). Le bouton Selfie ouvrait l'appli photo externe et, sur Android, le navigateur était tué en arrière-plan (photo perdue). Repli sur image_picker si la caméra est refusée ou absente (`SelfieUnavailable`) ; stub hors web pour l'APK TV.
 - **0.4.0** (28/10/2026, poussé sur main) : les 4 autres jeux jouables (Qui de nous ?, Réponses drôles, Course de réflexes, Dessin à deviner) + musique originale sur la TV. SQL à lancer : `03_quidenous.sql`, `04_droles.sql`, `05_dessin.sql`. APK TV 0.4.0 (même clé).
+- **0.4.1** (28/10/2026, pas encore poussé) : selfie **uniquement dans la page** (plus de repli sur l'appli photo : avec elle, Android fermait le navigateur et la page revenait violette) ; message clair si la caméra est refusée/absente. Pseudo et photo du formulaire gardés à chaque modification. `flutter_bootstrap.js` recharge la page au retour d'arrière-plan si WebGL est perdu, ou sur `/play` après plus de 10 s en arrière-plan (le joueur retrouve sa place). Appli TV : touche Retour → « Arrêter la partie ? » (message `tv_game_msg {t: tv_stop}` → retour au salon, points gardés) ou « Quitter PartyBroc TV ? » au salon (+ bouton Quitter) ; musique en pause quand l'appli passe en arrière-plan ; rappel « Retour : arrêter la partie » pendant les jeux.
 - Tous les jeux sont faits. Idées suivantes : soirée enchaînée (plusieurs jeux d'affilée, score global), sons d'ambiance.

@@ -215,6 +215,21 @@ try {
     for (const x of [tv, ...ps]) x.close();
   }
 
+  // ================= Touche Retour de l'appli TV : arrêter la partie
+  {
+    const { tv, ps } = await setup(['Ana', 'Ben']);
+    ps[0].send({ t: 'select_game', game: 'reflexes' });
+    ps[0].send({ t: 'start_game' });
+    await live(tv, (g) => g.id === 'reflexes');
+    ps[1].send({ t: 'tv_game_msg', m: { t: 'tv_stop' } }); // un téléphone ne peut pas
+    await sleep(300);
+    tv.flush();
+    tv.send({ t: 'tv_game_msg', m: { t: 'tv_stop' } });
+    await tv.room((r) => r.phase === 'lobby' && r.game === null);
+    step('Appli TV : la touche Retour arrête la partie (la TV seulement)');
+    for (const x of [tv, ...ps]) x.close();
+  }
+
   console.log(`\n${ok} étapes OK`);
 } catch (e) {
   console.error('ÉCHEC', e);

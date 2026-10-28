@@ -296,7 +296,13 @@ class _PlayScreenState extends State<PlayScreen> {
           decoration: const InputDecoration(hintText: 'ABCD', counterText: ''),
         ),
         const SizedBox(height: 24),
-        ProfileEditor(profile: _profile, onChanged: () => setState(() {})),
+        ProfileEditor(
+          profile: _profile,
+          onChanged: () {
+            setState(() {});
+            if (_prefs != null) _profile.save(_prefs!);
+          },
+        ),
         if (_formError != null) ...[
           const SizedBox(height: 18),
           Container(

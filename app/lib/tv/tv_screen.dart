@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,10 +34,20 @@ class _TvScreenState extends State<TvScreen> {
   SharedPreferences? _prefs;
   RoomView? _room;
   String? _error;
+  late final AppLifecycleListener _life;
+  bool _dialog = false;
 
   @override
   void initState() {
     super.initState();
+    // Bouton Accueil de la télécommande : la musique s'arrête, elle reprend au retour
+    _life = AppLifecycleListener(
+      onHide: () => Music.instance.pause(),
+      onResume: () {
+        Music.instance.resume();
+        _sock.kick();
+      },
+    );
     _sock = PbSocket(onOpen: _hello);
     _sub = _sock.messages.listen(_onMessage);
     DrawBoard.instance.requestSync = () => _sock.send({'t': 'tv_game_msg', 'm': {'t': 'drw_sync'}});
@@ -105,13 +117,48 @@ class _TvScreenState extends State<TvScreen> {
 
   @override
   void dispose() {
+    _life.dispose();
     _sub?.cancel();
     _sock.dispose();
     super.dispose();
   }
 
+  // Touche Retour de la télécommande
+  Future<void> _onBack() async {
+    if (_dialog) return;
+    final inGame = _room?.live != null;
+    _dialog = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _TvDialog(
+        title: inGame ? 'Arrêter la partie ?' : 'Quitter PartyBroc TV ?',
+        text: inGame ? 'On revient au salon. Les points déjà gagnés sont gardés.' : 'Le salon reste ouvert 15 minutes si tu reviens.',
+        yes: inGame ? 'Arrêter la partie' : 'Quitter',
+      ),
+    );
+    _dialog = false;
+    if (ok != true) return;
+    if (inGame) {
+      _sock.send({'t': 'tv_game_msg', 'm': {'t': 'tv_stop'}});
+    } else {
+      await Music.instance.pause();
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Appli TV : la touche Retour ouvre un menu au lieu de ne rien faire
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !kIsWeb) _onBack();
+      },
+      child: _content(),
+    );
+  }
+
+  Widget _content() {
     // Dans un navigateur, le son ne démarre qu'après un premier appui
     return Listener(
       onPointerDown: (_) => Music.instance.unlock(),
@@ -140,8 +187,14 @@ class _TvScreenState extends State<TvScreen> {
                 else if (_room!.live != null)
                   _game(_room!)
                 else
-                  _Lobby(room: _room!, onNewRoom: _newRoom),
+                  _Lobby(room: _room!, onNewRoom: _newRoom, onQuit: _onBack),
                 Positioned(top: 30, left: 0, right: 0, child: Center(child: _NetBadge(state: _sock.state))),
+                if (!kIsWeb && _room?.live != null)
+                  Positioned(
+                    right: 36,
+                    bottom: 20,
+                    child: Text('⮌  Retour : arrêter la partie', style: Pb.t(24, color: Pb.muted.withValues(alpha: .7))),
+                  ),
                 if (_error != null)
                   Positioned(
                     left: 0,
@@ -173,9 +226,10 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.room, required this.onNewRoom});
+  const _Lobby({required this.room, required this.onNewRoom, required this.onQuit});
   final RoomView room;
   final VoidCallback onNewRoom;
+  final VoidCallback onQuit;
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +245,14 @@ class _Lobby extends StatelessWidget {
           const Spacer(),
           const _MusicButton(),
           const SizedBox(width: 20),
+          if (!kIsWeb) ...[
+            TextButton.icon(
+              onPressed: onQuit,
+              icon: const Icon(Icons.power_settings_new_rounded, size: 30, color: Pb.muted),
+              label: Text('Quitter', style: Pb.t(26, color: Pb.muted)),
+            ),
+            const SizedBox(width: 20),
+          ],
           TextButton.icon(
             onPressed: onNewRoom,
             icon: const Icon(Icons.refresh_rounded, size: 30, color: Pb.muted),
@@ -472,6 +534,32 @@ class _MusicButtonState extends State<_MusicButton> {
       },
       icon: Icon(muted ? Icons.music_off_rounded : Icons.music_note_rounded, size: 30, color: Pb.muted),
       label: Text(muted ? 'Musique coupée' : 'Musique', style: Pb.t(26, color: Pb.muted)),
+    );
+  }
+}
+
+/// Boîte de dialogue lisible de loin, pilotable à la télécommande
+class _TvDialog extends StatelessWidget {
+  const _TvDialog({required this.title, required this.text, required this.yes});
+  final String title, text, yes;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Pb.bg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text(title, style: Pb.t(28, weight: 700)),
+      content: Text(text, style: Pb.t(20, color: Pb.muted)),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      actions: [
+        // « Annuler » a le focus : un appui sur OK par erreur ne quitte pas
+        OutlinedButton(autofocus: true, onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(yes),
+        ),
+      ],
     );
   }
 }

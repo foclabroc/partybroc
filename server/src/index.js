@@ -213,6 +213,8 @@ const handlers = {
   tv_game_msg(ws, m) {
     const { role, room } = ws.ctx;
     if (role !== 'tv' || !room.game || !m.m || typeof m.m.t !== 'string') return;
+    // Touche Retour de l'appli TV : partie arrêtée, retour au salon (points gardés)
+    if (m.m.t === 'tv_stop') return room.endGame(room.game.results());
     room.game.onTvMessage?.(m.m);
   },
 

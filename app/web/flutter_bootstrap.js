@@ -50,6 +50,19 @@
     if (l) l.remove();
   });
 
+  // Retour sur la page après l'arrière-plan : sur certains téléphones, le dessin
+  // (WebGL) est perdu et l'écran reste violet. On recharge alors la page : le
+  // joueur retrouve sa place grâce à son jeton, la TV son salon.
+  let glLost = false;
+  let hiddenAt = 0;
+  document.addEventListener('webglcontextlost', () => { glLost = true; }, true);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    const phone = location.pathname.replace(/\/+$/, '') === '/play';
+    if (glLost || (phone && away > 10000)) location.reload();
+  });
+
   _flutter.loader.load({
     config: config,
     onEntrypointLoaded: async function (engineInitializer) {
