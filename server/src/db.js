@@ -128,6 +128,38 @@ export const db = {
       [code, p.pid, p.name, p.emoji, p.color, p.score, playedGame ? 1 : 0]);
   },
 
+  // ---- statistiques des salons permanents (sql/10_stats.sql) ----
+  // results : [{pid, score, rank}] ; pid = identifiant du membre
+  async statsSaved(code, game, results) {
+    for (const r of results) {
+      await q(`insert into pb.pb_room_stats (code, member_id, game, played, wins, best, total)
+               values ($1, $2, $3, 1, $4, $5::int, $5::bigint)
+               on conflict (code, member_id, game) do update set
+                 played = pb_room_stats.played + 1,
+                 wins = pb_room_stats.wins + excluded.wins,
+                 best = greatest(pb_room_stats.best, excluded.best),
+                 total = pb_room_stats.total + excluded.total`,
+        [code, r.pid, game, r.rank === 1 && r.score > 0 ? 1 : 0, Math.max(0, Math.round(r.score))]);
+    }
+  },
+
+  // Classement de tous les temps + champion de chaque jeu
+  async permStats(code) {
+    const m = await q(`select member_id, name, emoji, color, score, games from pb.pb_room_members
+                       where code = $1 order by score desc, games desc limit 30`, [code]);
+    const g = await q(`select distinct on (s.game) s.game, s.wins, s.best, s.played, m.name, m.emoji, m.color
+                       from pb.pb_room_stats s join pb.pb_room_members m using (code, member_id)
+                       where s.code = $1 and s.wins > 0
+                       order by s.game, s.wins desc, s.best desc`, [code]);
+    const tot = await q(`select game, sum(played)::int as played from pb.pb_room_stats where code = $1 group by game`, [code]);
+    if (!m || !g || !tot) return null;
+    const played = Object.fromEntries(tot.rows.map((r) => [r.game, r.played]));
+    return {
+      members: m.rows.map((r) => ({ id: r.member_id, name: r.name, emoji: r.emoji, color: r.color, score: Number(r.score), games: r.games })),
+      champions: g.rows.map((r) => ({ game: r.game, wins: r.wins, best: Number(r.best), name: r.name, emoji: r.emoji, color: r.color, played: played[r.game] || 0 })),
+    };
+  },
+
   async close() {
     if (pool) await pool.end();
   },

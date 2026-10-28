@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 /// Ce que le serveur envoie de l'état d'un salon.
 class PlayerView {
   PlayerView.fromJson(Map<String, dynamic> j)
@@ -7,6 +9,7 @@ class PlayerView {
         color = (j['color'] as num?)?.toInt() ?? 0,
         photo = j['photo'] as String?,
         score = (j['score'] as num?)?.toInt() ?? 0,
+        team = (j['team'] as num?)?.toInt(),
         connected = j['connected'] == true;
 
   final String pid;
@@ -15,7 +18,57 @@ class PlayerView {
   final int color;
   final String? photo;
   final int score;
+  final int? team; // numéro d'équipe (équipes activées)
   final bool connected;
+}
+
+/// Équipes du salon (activées par l'hôte)
+class TeamsView {
+  TeamsView.fromJson(Map<String, dynamic> j)
+      : count = (j['count'] as num).toInt(),
+        names = [for (final n in j['names'] as List) n as String],
+        scores = [for (final n in j['scores'] as List) (n as num).toInt()],
+        lastGame = (j['last'] as Map?)?['game'] as String?,
+        last = [for (final n in ((j['last'] as Map?)?['pts'] as List?) ?? const []) (n as num).toInt()];
+
+  final int count;
+  final List<String> names;
+  final List<int> scores; // score de la soirée
+  final String? lastGame;
+  final List<int> last; // points de la dernière partie
+
+  static const colors = [Color(0xFFFF5A5A), Color(0xFF4F8BFF), Color(0xFF3FCF7A), Color(0xFFFFD23F)];
+  static Color color(int i) => colors[i % colors.length];
+}
+
+class SoireeRank {
+  SoireeRank.fromJson(Map<String, dynamic> j)
+      : pid = j['pid'] as String,
+        score = (j['score'] as num).toInt(),
+        rank = (j['rank'] as num).toInt();
+  final String pid;
+  final int score, rank;
+}
+
+/// Soirée enchaînée en cours
+class SoireeView {
+  SoireeView.fromJson(Map<String, dynamic> j)
+      : games = [for (final g in j['games'] as List) g as String],
+        index = (j['index'] as num).toInt(),
+        step = j['step'] as String,
+        endsIn = (j['endsIn'] as num?)?.toInt() ?? 0,
+        duration = (j['duration'] as num?)?.toInt() ?? 1,
+        ranking = [for (final r in j['ranking'] as List) SoireeRank.fromJson(r as Map<String, dynamic>)],
+        teams = j['teams'] == null ? null : [for (final n in j['teams'] as List) (n as num).toInt()],
+        last = j['last'] as String?;
+
+  final List<String> games;
+  final int index;
+  final String step; // game | interlude | final
+  final int endsIn, duration;
+  final List<SoireeRank> ranking;
+  final List<int>? teams;
+  final String? last;
 }
 
 class GameInfo {
@@ -63,6 +116,8 @@ class RoomView {
         maxPlayers = (j['maxPlayers'] as num?)?.toInt() ?? 10,
         options = Map<String, dynamic>.from((j['options'] as Map?) ?? const {}),
         live = j['game'] as Map<String, dynamic>?,
+        teams = j['teams'] == null ? null : TeamsView.fromJson(j['teams'] as Map<String, dynamic>),
+        soiree = j['soiree'] == null ? null : SoireeView.fromJson(j['soiree'] as Map<String, dynamic>),
         games = [for (final g in j['games'] as List) GameInfo.fromJson(g as Map<String, dynamic>)],
         players = [for (final p in j['players'] as List) PlayerView.fromJson(p as Map<String, dynamic>)];
 
@@ -77,6 +132,10 @@ class RoomView {
   final List<PlayerView> players;
   final Map<String, dynamic> options; // réglages du jeu sélectionné
   final Map<String, dynamic>? live; // état public de la partie en cours (null au salon)
+  final TeamsView? teams; // null = pas d'équipes
+  final SoireeView? soiree; // null = pas de soirée enchaînée
+
+  GameInfo? gameById(String id) => games.where((g) => g.id == id).firstOrNull;
 
   PlayerView? player(String pid) => players.where((p) => p.pid == pid).firstOrNull;
 

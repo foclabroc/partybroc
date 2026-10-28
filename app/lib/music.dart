@@ -65,6 +65,13 @@ class Music {
     }
   }
 
+  /// Musique plus basse pendant que l'animateur parle
+  Future<void> duck(bool on) async {
+    try {
+      await _player.setVolume(on ? volume * 0.3 : volume);
+    } catch (_) {}
+  }
+
   /// À appeler au premier appui (clic, télécommande) : débloque le son dans un navigateur
   Future<void> unlock() async {
     if (!muted && _playing == null && _want != null) await _start();

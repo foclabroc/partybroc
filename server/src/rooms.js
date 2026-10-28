@@ -8,6 +8,14 @@ import { GAMES, gameById } from './games/index.js';
 // Consonnes seulement : pas de mot gênant possible, pas de 0/O ou 1/I
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';
 const COLORS = 12;
+// Équipes : 2 à 4, renommables par l'hôte (ex. « Famille Dupont »)
+const TEAM_NAMES = ['Équipe Rouge', 'Équipe Bleue', 'Équipe Verte', 'Équipe Jaune'];
+// Soirée enchaînée : pause entre deux jeux (classement), podium final
+export const SOIREE = {
+  interludeMs: process.env.PB_FAST ? 1500 : 15000,
+  finalMs: process.env.PB_FAST ? 2500 : 30000,
+  maxGames: 6,
+};
 
 const rid = (bytes = 8) => crypto.randomBytes(bytes).toString('hex');
 
@@ -62,6 +70,7 @@ class Player {
     this.photo = photo;             // { buf, type } ou null
     this.photoV = photo ? 1 : 0;
     this.score = 0;
+    this.team = null;               // numéro d'équipe (si les équipes sont activées)
     this.ws = null;
     this.leftAt = 0;                // date de déconnexion (0 = connecté)
     this.joinedAt = Date.now();
@@ -77,6 +86,7 @@ class Player {
       color: this.color,
       photo: this.photo ? `/a/${code}/${this.pid}/${this.photoV}` : null,
       score: this.score,
+      team: this.team,
       connected: this.connected,
     };
   }
@@ -102,6 +112,9 @@ export class Room {
     this.gameStartedAt = 0;
     this.starting = false;
     this.usedQuiz = new Set();      // questions déjà posées ce soir
+    this.teams = { on: false, count: 2, names: [...TEAM_NAMES] };
+    this.lastTeams = null;          // points de chaque équipe à la dernière partie
+    this.soiree = null;             // soirée enchaînée en cours
     this.chatLog = [];              // 30 derniers messages (pour qui arrive en cours)
     this.chatSeq = 0;
     this.used = {};                 // contenu déjà servi ce soir, par table (Set d'id)
@@ -122,6 +135,8 @@ export class Room {
       games: GAMES.map(({ id, title, emoji, min, ready, pitch, options }) => ({ id, title, emoji, min, ready, pitch, options: options || {} })),
       options: this.options[this.selectedGame] || {},
       game: this.game ? this.game.publicState() : null,
+      teams: this.teams.on ? this.teamsView() : null,
+      soiree: this.soireeView(),
       maxPlayers: config.maxPlayers,
       players: [...this.players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
@@ -150,6 +165,162 @@ export class Room {
     if (target === 'tv') { for (const tv of this.tvs) send(tv, msg); return; }
     const ws = this.players.get(target)?.ws;
     if (ws) send(ws, msg);
+  }
+
+  // ---- équipes ----
+  teamsView() {
+    const scores = Array(this.teams.count).fill(0);
+    for (const p of this.players.values()) if (p.team !== null && p.team < this.teams.count) scores[p.team] += p.score;
+    return {
+      count: this.teams.count,
+      names: this.teams.names.slice(0, this.teams.count),
+      scores,
+      last: this.lastTeams,
+    };
+  }
+
+  // La plus petite équipe (pour placer un nouveau joueur)
+  smallestTeam() {
+    const n = Array(this.teams.count).fill(0);
+    for (const p of this.players.values()) if (p.team !== null && p.team < this.teams.count) n[p.team]++;
+    return n.indexOf(Math.min(...n));
+  }
+
+  setTeams(on, count) {
+    this.teams.on = !!on;
+    if (Number.isInteger(count) && count >= 2 && count <= 4) this.teams.count = count;
+    for (const p of this.players.values()) {
+      if (!this.teams.on) continue;
+      if (p.team === null || p.team >= this.teams.count) p.team = this.smallestTeam();
+    }
+  }
+
+  shuffleTeams() {
+    const list = [...this.players.values()];
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = crypto.randomInt(i + 1);
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    list.forEach((p, i) => { p.team = i % this.teams.count; });
+  }
+
+  renameTeam(i, name) {
+    if (Number.isInteger(i) && i >= 0 && i < 4 && name) this.teams.names[i] = name;
+  }
+
+  // Points de chaque équipe à cette partie
+  teamTotals(results) {
+    const pts = Array(this.teams.count).fill(0);
+    for (const r of results || []) {
+      const p = this.players.get(r.pid);
+      if (p && p.team !== null && p.team < this.teams.count) pts[p.team] += r.score;
+    }
+    return pts;
+  }
+
+  // ---- soirée enchaînée ----
+  soireeView() {
+    const so = this.soiree;
+    if (!so) return null;
+    const ranking = [...so.scores.entries()].filter(([pid]) => this.players.has(pid))
+      .map(([pid, score]) => ({ pid, score })).sort((a, b) => b.score - a.score);
+    let rank = 0, prev = null;
+    ranking.forEach((r, i) => { if (r.score !== prev) { rank = i + 1; prev = r.score; } r.rank = rank; });
+    let teams = null;
+    if (this.teams.on) {
+      teams = Array(this.teams.count).fill(0);
+      for (const r of ranking) {
+        const p = this.players.get(r.pid);
+        if (p && p.team !== null && p.team < this.teams.count) teams[p.team] += r.score;
+      }
+    }
+    return {
+      games: so.games,
+      index: so.index,
+      step: so.step,             // 'game' | 'interlude' | 'final'
+      endsIn: Math.max(0, so.until - Date.now()),
+      duration: so.duration,
+      ranking,
+      teams,
+      last: so.last,             // dernier jeu joué (pour l'entracte)
+    };
+  }
+
+  async startSoiree(list) {
+    if (this.game || this.soiree) throw new Error('Une partie est déjà en cours');
+    const games = [...new Set(list)].filter((id) => gameById(id)?.ready).slice(0, SOIREE.maxGames);
+    if (games.length < 2) throw new Error('Choisis au moins 2 jeux pour la soirée');
+    const tooFew = games.map(gameById).find((g) => this.connectedCount() < g.min);
+    if (tooFew) throw new Error(`${tooFew.title} : il faut au moins ${tooFew.min} joueurs`);
+    this.soiree = { games, index: 0, step: 'game', scores: new Map(), until: 0, duration: 0, last: null, timer: null };
+    for (const p of this.players.values()) this.soiree.scores.set(p.pid, 0);
+    this.selectedGame = games[0];
+    try {
+      await this.startGame();
+    } catch (e) {
+      this.soiree = null;
+      throw e;
+    }
+  }
+
+  // Après chaque jeu : entracte (classement) puis jeu suivant, ou podium final
+  soireeAfterGame(results) {
+    const so = this.soiree;
+    for (const r of results || []) so.scores.set(r.pid, (so.scores.get(r.pid) || 0) + r.score);
+    so.last = so.games[so.index];
+    const last = so.index >= so.games.length - 1;
+    so.step = last ? 'final' : 'interlude';
+    so.duration = last ? SOIREE.finalMs : SOIREE.interludeMs;
+    so.until = Date.now() + so.duration;
+    clearTimeout(so.timer);
+    so.timer = setTimeout(() => this.soireeNext(), so.duration);
+    this.phase = so.step;
+  }
+
+  soireeFinal() {
+    const so = this.soiree;
+    if (!so) return;
+    so.games = so.games.slice(0, so.index + 1);
+    so.step = 'final';
+    so.duration = SOIREE.finalMs;
+    so.until = Date.now() + so.duration;
+    clearTimeout(so.timer);
+    so.timer = setTimeout(() => this.soireeNext(), so.duration);
+    this.phase = 'final';
+    this.broadcast();
+  }
+
+  async soireeNext() {
+    const so = this.soiree;
+    if (!so || this.closed) return;
+    clearTimeout(so.timer);
+    if (so.step === 'final') return this.soireeEnd();
+    if (so.step !== 'interlude') return;
+    // Jeu suivant (s'il ne peut pas démarrer, on passe au suivant)
+    while (so.index < so.games.length - 1) {
+      so.index++;
+      so.step = 'game';
+      this.selectedGame = so.games[so.index];
+      this.phase = 'lobby';
+      try {
+        await this.startGame();
+        return;
+      } catch (e) {
+        console.warn('[soirée]', so.games[so.index], e.message);
+      }
+    }
+    this.soireeEnd();
+  }
+
+  soireeEnd() {
+    const so = this.soiree;
+    if (!so) return;
+    clearTimeout(so.timer);
+    // Salon permanent : la soirée compte aussi dans les statistiques (« soirées gagnées »)
+    if (this.perm) db.statsSaved(this.code, 'soiree', this.soireeView().ranking);
+    this.soiree = null;
+    this.phase = 'lobby';
+    this.broadcast();
   }
 
   // ---- parties ----
@@ -188,6 +359,8 @@ export class Room {
       if (p) p.score += r.score;
     }
     db.gameSaved(this.partyId, this.gameId, this.gameStartedAt, results || []);
+    if (this.teams.on) this.lastTeams = { game: this.gameId, pts: this.teamTotals(results) };
+    if (this.perm) db.statsSaved(this.code, this.gameId, results || []);
     for (const p of this.players.values()) db.playerSeen(this.partyId, p.pid, p.name, p.score);
     // Salon permanent : le score total de chaque joueur est gardé
     if (this.perm) {
@@ -199,6 +372,7 @@ export class Room {
     this.game = null;
     this.gameId = null;
     this.phase = 'lobby';
+    if (this.soiree) this.soireeAfterGame(results);
     this.pickHost();
     this.broadcast();
   }
@@ -234,10 +408,12 @@ export class Room {
     if (this.nameTaken(profile.name)) throw new Error('Ce pseudo est déjà pris dans ce salon');
     const p = new Player(profile, pid);
     p.score = score;
+    if (this.teams.on) p.team = this.smallestTeam();
     this.players.set(p.pid, p);
     this.maxSeen = Math.max(this.maxSeen, this.players.size);
     if (!this.hostPid) this.hostPid = p.pid;
     this.game?.onPlayerJoin?.(p);
+    if (this.soiree && !this.soiree.scores.has(p.pid)) this.soiree.scores.set(p.pid, 0);
     db.playerSeen(this.partyId, p.pid, p.name, 0);
     return p;
   }
@@ -309,6 +485,7 @@ export class RoomManager {
     if (room.closed) return;
     room.closed = true;
     room.game?.stop();
+    clearTimeout(room.soiree?.timer);
     this.rooms.delete(room.code);
     const saves = [];
     for (const p of room.players.values()) {

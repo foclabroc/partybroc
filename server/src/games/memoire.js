@@ -23,6 +23,8 @@ export const MEM = fastTimings({
 export const COLORS = ['rouge', 'bleu', 'vert', 'jaune', 'violet', 'orange'];
 const CORNERS = [['en haut à gauche', 0], ['en haut à droite', 3], ['en bas à gauche', 8], ['en bas à droite', 11]];
 const rnd = (n) => crypto.randomInt(n);
+// Nom d'un emoji, pour l'animateur vocal (« Combien y avait-il de Chat ? »)
+const nameOf = (e) => ALL_EMOJIS.find((x) => x.e === e)?.name.toLowerCase() ?? 'cet objet';
 
 // Une grille : 12 cases, 5 ou 6 emojis différents, certains en plusieurs exemplaires
 export function makeScene() {
@@ -46,7 +48,7 @@ export function makeQuestion(cells) {
     const set = new Set([n]);
     for (const d of shuffle([-1, 1, 2, -2, 3])) if (set.size < 4 && n + d >= 0) set.add(n + d);
     const choices = shuffle([...set].map(String));
-    return { text: `Combien y avait-il de ${e} ?`, kind: 'number', choices, correct: choices.indexOf(String(n)) };
+    return { text: `Combien y avait-il de ${e} ?`, say: `Combien y avait-il de : ${nameOf(e)} ?`, kind: 'number', choices, correct: choices.indexOf(String(n)) };
   }
   if (type === 'corner') {
     const [label, idx] = CORNERS[rnd(4)];
@@ -60,7 +62,7 @@ export function makeQuestion(cells) {
     const e = singles[rnd(singles.length)];
     const c = cells.find((x) => x.e === e).c;
     const choices = shuffle([c, ...shuffle(COLORS.filter((x) => x !== c)).slice(0, 3)]);
-    return { text: `De quelle couleur était la case de ${e} ?`, kind: 'color', choices, correct: choices.indexOf(c) };
+    return { text: `De quelle couleur était la case de ${e} ?`, say: `De quelle couleur était la case : ${nameOf(e)} ?`, kind: 'color', choices, correct: choices.indexOf(c) };
   }
   // absent : 3 emojis de la grille + 1 qui n'y était pas
   const absent = shuffle([...ALL_EMOJIS]).map((x) => x.e).find((x) => !kinds.includes(x));
@@ -99,7 +101,7 @@ export class MemoireGame extends RoundGame {
     const { cells, q } = this.round;
     const s = { cols: MEM.cols };
     if (this.phase === 'show' || reveal) s.cells = cells;
-    if (this.phase !== 'show') { s.question = q.text; s.kind = q.kind; s.choices = q.choices; }
+    if (this.phase !== 'show') { s.question = q.text; s.say = q.say || q.text; s.kind = q.kind; s.choices = q.choices; }
     if (reveal) {
       s.correct = q.correct;
       s.picks = Object.fromEntries([...this.answers].map(([pid, a]) => [pid, a.v]));

@@ -22,6 +22,8 @@ import '../games/tv_game.dart';
 import '../live_feed.dart';
 import '../models.dart';
 import '../sfx.dart';
+import '../voice.dart';
+import '../games/party_ui.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
@@ -52,6 +54,8 @@ class _PlayScreenState extends State<PlayScreen> {
   bool _showScreen = true; // salon permanent : l'écran du jeu aussi sur le téléphone
   bool _phoneSfx = true; // salon permanent : les bruitages de la TV aussi sur le téléphone
   final _sfx = SfxDirector();
+  final _voice = VoiceDirector();
+  final _stats = ValueNotifier<Map<String, dynamic>?>(null);
   String? _formError;
 
   // Session en cours (pour revenir après une coupure)
@@ -135,6 +139,8 @@ class _PlayScreenState extends State<PlayScreen> {
   void _onMessage(Map<String, dynamic> m) {
     if (LiveFeed.instance.handle(m)) return;
     switch (m['t']) {
+      case 'perm_stats':
+        _stats.value = m;
       case 'joined':
         _sCode = m['code'] as String;
         _sToken = m['token'] as String;
@@ -154,7 +160,9 @@ class _PlayScreenState extends State<PlayScreen> {
         // Joueur à distance (salon permanent) : les mêmes bruitages que la TV, s'il le veut
         if (_room!.perm && _phoneSfx) {
           Sfx.instance.init();
+          Voice.instance.init();
           _sfx.onRoom(m['room'] as Map<String, dynamic>);
+          _voice.onRoom(m['room'] as Map<String, dynamic>);
         }
       case 'draw':
         DrawBoard.instance.apply(m);
@@ -316,6 +324,10 @@ class _PlayScreenState extends State<PlayScreen> {
         final room = _room;
         if (room == null) return const Center(child: CircularProgressIndicator(color: Pb.pink));
         final live = room.live;
+        // Soirée enchaînée : entracte (classement) et podium final
+        if (live == null && room.soiree != null && room.soiree!.step != 'game') {
+          return PhoneSoiree(room: room, myPid: _myPid, isHost: room.hostPid == _myPid, send: _sock.send);
+        }
         if (live != null && room.perm) return _withScreen(room, _play(room));
         if (live != null) return _play(room);
         return _LobbyView(
@@ -328,8 +340,35 @@ class _PlayScreenState extends State<PlayScreen> {
           onShowScreen: _setShowScreen,
           phoneSfx: _phoneSfx,
           onPhoneSfx: _setPhoneSfx,
+          onStats: _openStats,
         );
     }
+  }
+
+  // Classement de tous les temps du salon permanent
+  void _openStats() {
+    _stats.value = null;
+    _sock.send({'t': 'perm_stats'});
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Pb.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (_) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * .75,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            child: ValueListenableBuilder(
+              valueListenable: _stats,
+              builder: (_, st, _) => st == null
+                  ? const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Pb.pink)))
+                  : PermStatsView(stats: st, games: _room?.games ?? const []),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _setPhoneSfx(bool v) {
@@ -516,7 +555,10 @@ class _LobbyView extends StatelessWidget {
     required this.onShowScreen,
     required this.phoneSfx,
     required this.onPhoneSfx,
+    required this.onStats,
   });
+
+  final VoidCallback onStats;
 
   final bool showScreen, phoneSfx;
   final ValueChanged<bool> onShowScreen, onPhoneSfx;
@@ -583,7 +625,12 @@ class _LobbyView extends StatelessWidget {
                 value: phoneSfx,
                 activeThumbColor: Pb.pink,
                 onChanged: onPhoneSfx,
-                title: Text('Sons sur mon téléphone', style: Pb.t(15, weight: 600)),
+                title: Text('Sons et voix sur mon téléphone', style: Pb.t(15, weight: 600)),
+              ),
+              TextButton.icon(
+                onPressed: onStats,
+                icon: const Text('🏆'),
+                label: Text('Classement de tous les temps', style: Pb.t(15, weight: 600)),
               ),
             ]),
           ),
@@ -617,6 +664,7 @@ class _LobbyView extends StatelessWidget {
             ]),
           ),
         const SizedBox(height: 18),
+        PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
 
         // ---- Jeu ----
         if (isHost) ...[
@@ -656,6 +704,19 @@ class _LobbyView extends StatelessWidget {
           FilledButton(
             onPressed: game == null || !game.ready ? null : () => send({'t': 'start_game'}),
             child: Text(game == null ? 'Lancer' : 'Lancer ${game.title}'),
+          ),
+          const SizedBox(height: 10),
+          // Plusieurs jeux d'affilée, avec un classement général
+          OutlinedButton.icon(
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Pb.bg2,
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+              builder: (_) => SoireePicker(room: room, send: send),
+            ),
+            icon: const Text('🎯'),
+            label: const Text('Soirée enchaînée'),
           ),
         ] else ...[
           Container(

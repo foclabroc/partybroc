@@ -12,6 +12,8 @@ import '../live_feed.dart';
 import '../models.dart';
 import '../music.dart';
 import '../sfx.dart';
+import '../voice.dart';
+import '../games/party_ui.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
@@ -37,6 +39,8 @@ class _TvScreenState extends State<TvScreen> {
   bool _dialog = false;
   TvUpdate? _update; // nouvelle version de l'appli TV disponible
   final _sfx = SfxDirector(); // bruitages d'après l'état du salon
+  final _voice = VoiceDirector(); // animateur vocal
+  final _stats = ValueNotifier<Map<String, dynamic>?>(null); // statistiques du salon permanent
   Timer? _updateTimer;
   DateTime _lastCheck = DateTime(2000);
 
@@ -63,6 +67,7 @@ class _TvScreenState extends State<TvScreen> {
       _sock.connect();
     });
     Sfx.instance.init();
+    Voice.instance.init();
     Music.instance.init().then((_) {
       if (mounted) setState(() {});
       Music.instance.play('salon');
@@ -101,6 +106,36 @@ class _TvScreenState extends State<TvScreen> {
     _sock.send({'t': r.create ? 'perm_create' : 'perm_open', 'code': r.code, 'password': r.password});
   }
 
+  // Statistiques du salon permanent (classement de tous les temps, champions)
+  Future<void> _statsDialog() async {
+    if (_dialog) return;
+    _dialog = true;
+    _stats.value = null;
+    _sock.send({'t': 'perm_stats'});
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => TvKeys(
+        child: AlertDialog(
+          backgroundColor: Pb.bg2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          content: SizedBox(
+            width: 900,
+            child: SingleChildScrollView(
+              child: ValueListenableBuilder(
+                valueListenable: _stats,
+                builder: (_, st, _) => st == null
+                    ? const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Pb.pink)))
+                    : PermStatsView(stats: st, games: _room?.games ?? const [], scale: 1.2, wide: true),
+              ),
+            ),
+          ),
+          actions: [FilledButton(autofocus: true, onPressed: () => Navigator.pop(ctx), child: const Text('Fermer'))],
+        ),
+      ),
+    );
+    _dialog = false;
+  }
+
   // Quitter le salon permanent : retour à un salon normal (le permanent reste ouvert)
   void _leavePerm() {
     _forgetPerm();
@@ -110,6 +145,8 @@ class _TvScreenState extends State<TvScreen> {
   void _onMessage(Map<String, dynamic> m) {
     if (LiveFeed.instance.handle(m)) return;
     switch (m['t']) {
+      case 'perm_stats':
+        _stats.value = m;
       case 'tv_ok':
         if (m['perm'] == true) {
           _prefs?.setString('tv_perm_code', m['code'] as String);
@@ -126,6 +163,7 @@ class _TvScreenState extends State<TvScreen> {
           _error = null;
         });
         _sfx.onRoom(m['room'] as Map<String, dynamic>);
+        _voice.onRoom(m['room'] as Map<String, dynamic>);
         // Musique : « jeu » pendant une partie, « salon » au salon et au podium
         final live = _room!.live;
         Music.instance.play(live != null && live['phase'] != 'podium' ? 'jeu' : 'salon');
@@ -254,11 +292,14 @@ class _TvScreenState extends State<TvScreen> {
                   Center(child: _waiting())
                 else if (_room!.live != null)
                   tvGameView(_room!)
+                else if (_room!.soiree != null && _room!.soiree!.step != 'game')
+                  TvSoiree(room: _room!)
                 else
                   _Lobby(
                     room: _room!,
                     onNewRoom: _room!.perm ? _leavePerm : _newRoom,
                     onPerm: _permDialog,
+                    onStats: _statsDialog,
                     onQuit: _onBack,
                     onUpdate: _update == null ? null : _offerUpdate,
                   ),
@@ -302,10 +343,11 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.room, required this.onNewRoom, required this.onPerm, required this.onQuit, this.onUpdate});
+  const _Lobby({required this.room, required this.onNewRoom, required this.onPerm, required this.onStats, required this.onQuit, this.onUpdate});
   final RoomView room;
   final VoidCallback onNewRoom;
   final VoidCallback onPerm;
+  final VoidCallback onStats;
   final VoidCallback onQuit;
   final VoidCallback? onUpdate;
 
@@ -333,11 +375,13 @@ class _Lobby extends StatelessWidget {
             TvButton(icon: Icons.system_update_rounded, label: 'Mise à jour', onPressed: onUpdate!, highlight: true, autofocus: true),
             const SizedBox(width: 16),
           ],
-          _MusicButton(autofocus: onUpdate == null),
-          const SizedBox(width: 16),
-          const _SfxButton(),
+          _SoundButton(autofocus: onUpdate == null),
           const SizedBox(width: 16),
           TvButton(icon: Icons.lock_rounded, label: 'Salon permanent', onPressed: onPerm),
+          if (room.perm) ...[
+            const SizedBox(width: 16),
+            TvButton(icon: Icons.emoji_events_rounded, label: 'Statistiques', onPressed: onStats),
+          ],
           const SizedBox(width: 16),
           TvButton(icon: Icons.refresh_rounded, label: room.perm ? 'Salon normal' : 'Nouveau salon', onPressed: onNewRoom),
           if (!kIsWeb) ...[
@@ -405,7 +449,8 @@ class _Lobby extends StatelessWidget {
                     child: Text('${room.players.length} / ${room.maxPlayers}', style: Pb.t(34, weight: 600)),
                   ),
                 ]),
-                const SizedBox(height: 34),
+                SizedBox(height: room.teams != null ? 14 : 34),
+                if (room.teams != null) ...[TvTeamsBar(teams: room.teams!, size: 28), const SizedBox(height: 14)],
                 Expanded(child: _PlayersGrid(room: room)),
               ]),
             ),
@@ -501,12 +546,19 @@ class _PlayerTile extends StatelessWidget {
             ),
         ]),
         SizedBox(height: small ? 6 : 14),
-        Text(
-          p.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Pb.t(small ? 28 : 34, weight: 600, color: p.connected ? Pb.text : Pb.muted),
-        ),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          // pastille de son équipe
+          if (p.team != null)
+            Container(width: 16, height: 16, margin: const EdgeInsets.only(right: 8), decoration: BoxDecoration(color: TeamsView.color(p.team!), shape: BoxShape.circle)),
+          Flexible(
+            child: Text(
+              p.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Pb.t(small ? 28 : 34, weight: 600, color: p.connected ? Pb.text : Pb.muted),
+            ),
+          ),
+        ]),
         if (p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(small ? 22 : 26, weight: 600, color: Pb.yellow, height: 1.1)),
       ]),
     );
@@ -623,27 +675,58 @@ class _NetBadge extends StatelessWidget {
   }
 }
 
-/// Bouton son de la TV (accessible à la télécommande)
-class _MusicButton extends StatefulWidget {
-  const _MusicButton({this.autofocus = false});
+/// Bouton « Sons » : musique, bruitages et animateur vocal, chacun réglable
+class _SoundButton extends StatelessWidget {
+  const _SoundButton({this.autofocus = false});
   final bool autofocus;
 
   @override
-  State<_MusicButton> createState() => _MusicButtonState();
+  Widget build(BuildContext context) {
+    final all = Music.instance.muted && Sfx.instance.muted && Voice.instance.muted;
+    return TvButton(
+      autofocus: autofocus,
+      icon: all ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+      label: 'Sons',
+      onPressed: () => showDialog<void>(context: context, builder: (_) => const TvKeys(child: _SoundDialog())),
+    );
+  }
 }
 
-class _MusicButtonState extends State<_MusicButton> {
+class _SoundDialog extends StatefulWidget {
+  const _SoundDialog();
+
+  @override
+  State<_SoundDialog> createState() => _SoundDialogState();
+}
+
+class _SoundDialogState extends State<_SoundDialog> {
+  Widget _row(String label, IconData on, bool muted, Future<void> Function() toggle, {bool autofocus = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: TvButton(
+          autofocus: autofocus,
+          icon: muted ? Icons.toggle_off_rounded : on,
+          label: '$label : ${muted ? 'coupé' : 'activé'}',
+          highlight: !muted,
+          onPressed: () async {
+            await toggle();
+            if (mounted) setState(() {});
+          },
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final muted = Music.instance.muted;
-    return TvButton(
-      autofocus: widget.autofocus,
-      icon: muted ? Icons.music_off_rounded : Icons.music_note_rounded,
-      label: muted ? 'Musique coupée' : 'Musique',
-      onPressed: () async {
-        await Music.instance.toggle();
-        if (mounted) setState(() {});
-      },
+    return AlertDialog(
+      backgroundColor: Pb.bg2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text('Sons 🔊', style: Pb.t(28, weight: 700)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _row('Musique', Icons.music_note_rounded, Music.instance.muted, Music.instance.toggle, autofocus: true),
+        _row('Bruitages', Icons.campaign_rounded, Sfx.instance.muted, Sfx.instance.toggle),
+        _row('Animateur vocal', Icons.record_voice_over_rounded, Voice.instance.muted, Voice.instance.toggle),
+      ]),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      actions: [OutlinedButton(style: _actionSize, onPressed: () => Navigator.pop(context), child: const Text('Fermer'))],
     );
   }
 }
@@ -753,29 +836,6 @@ class _PermDialogState extends State<_PermDialog> {
         onPressed: tap,
         child: Text(label),
       );
-}
-
-/// Bouton des bruitages (indépendant de la musique)
-class _SfxButton extends StatefulWidget {
-  const _SfxButton();
-
-  @override
-  State<_SfxButton> createState() => _SfxButtonState();
-}
-
-class _SfxButtonState extends State<_SfxButton> {
-  @override
-  Widget build(BuildContext context) {
-    final muted = Sfx.instance.muted;
-    return TvButton(
-      icon: muted ? Icons.volume_off_rounded : Icons.campaign_rounded,
-      label: muted ? 'Bruitages coupés' : 'Bruitages',
-      onPressed: () async {
-        await Sfx.instance.toggle();
-        if (mounted) setState(() {});
-      },
-    );
-  }
 }
 
 /// Boîte de dialogue lisible de loin, pilotable à la télécommande

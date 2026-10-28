@@ -6,6 +6,7 @@ import 'common_ui.dart' show rowAvatar;
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
 import '../widgets/fireworks.dart';
+import 'party_ui.dart';
 import 'quiz_state.dart';
 
 /// Quiz sur la TV (toile 1920×1080).
@@ -303,6 +304,18 @@ class _Podium extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(80, 50, 80, 40),
       child: Column(children: [
         Text('🏆 Podium', style: Pb.t(84, weight: 700)),
+        if (room.teams != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: TvTeamsBar(
+              teams: room.teams!,
+              size: 30,
+              scores: [
+                for (var t = 0; t < room.teams!.count; t++)
+                  q.ranking.where((r) => room.player(r.pid)?.team == t).fold<int>(0, (a, r) => a + r.score),
+              ],
+            ),
+          ),
         const SizedBox(height: 10),
         Expanded(
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [

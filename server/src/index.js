@@ -370,11 +370,74 @@ const handlers = {
 
   async start_game(ws) {
     const { room, player: p } = ws.ctx;
-    if (!p || room.hostPid !== p.pid) return;
+    if (!p || room.hostPid !== p.pid || room.soiree) return;
     const g = gameById(room.selectedGame);
     if (!g.ready) return err(ws, `${g.title} arrive bientôt !`, 'not_ready');
     if (room.connectedCount() < g.min) return err(ws, `Il faut au moins ${g.min} joueurs`, 'not_enough');
     try { await room.startGame(); } catch (e) { err(ws, e.message, 'start_failed'); }
+  },
+
+  // ---- équipes (hôte, sauf le choix de son équipe) ----
+  teams_set(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || room.game) return;
+    room.setTeams(m.on, m.count);
+    room.broadcast();
+  },
+
+  teams_shuffle(ws) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || room.game || !room.teams.on) return;
+    room.shuffleTeams();
+    room.broadcast();
+  },
+
+  team_name(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid) return;
+    room.renameTeam(m.i, cleanName(m.name));
+    room.broadcast();
+  },
+
+  team_pick(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || !room.teams.on || room.game) return;
+    if (!Number.isInteger(m.i) || m.i < 0 || m.i >= room.teams.count) return;
+    p.team = m.i;
+    room.broadcast();
+  },
+
+  // ---- soirée enchaînée (hôte) ----
+  async soiree_start(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || !Array.isArray(m.games)) return;
+    try { await room.startSoiree(m.games.filter((x) => typeof x === 'string')); } catch (e) { err(ws, e.message, 'start_failed'); }
+  },
+
+  soiree_next(ws) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || !room.soiree || room.game) return;
+    room.soireeNext();
+  },
+
+  soiree_stop(ws) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || !room.soiree) return;
+    // Arrêt de la soirée : le jeu en cours s'arrête aussi (points gardés), puis podium final
+    if (room.game) {
+      room.soiree.games = room.soiree.games.slice(0, room.soiree.index + 1);
+      room.endGame(room.game.results());
+    } else {
+      room.soireeFinal(); // pendant l'entracte : podium final tout de suite
+    }
+  },
+
+  // ---- statistiques d'un salon permanent (écran ou joueur du salon) ----
+  async perm_stats(ws) {
+    const { room } = ws.ctx;
+    if (!room?.perm) return;
+    const st = await db.permStats(room.code);
+    if (st) send(ws, { t: 'perm_stats', ...st });
   },
 
   // Fin de partie demandée depuis le podium ou en cours de jeu : relayé au jeu

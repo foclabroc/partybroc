@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
 import '../widgets/fireworks.dart';
+import 'party_ui.dart';
 
 /// Lecture tolérante de l'état envoyé par le serveur
 extension Live on Map<String, dynamic> {
@@ -143,9 +144,10 @@ class TvGains extends StatelessWidget {
 
 /// Podium de fin de partie (commun aux jeux)
 class TvPodium extends StatelessWidget {
-  const TvPodium({super.key, required this.room, required this.live});
+  const TvPodium({super.key, required this.room, required this.live, this.title = '🏆 Podium'});
   final RoomView room;
   final Map<String, dynamic> live;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +165,12 @@ class TvPodium extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(80, 50, 80, 40),
       child: Column(children: [
-        Text('🏆 Podium', style: Pb.t(84, weight: 700)),
+        Text(title, style: Pb.t(84, weight: 700)),
+        // Équipes : points de chaque équipe à cette partie
+        if (room.teams != null && room.soiree?.step != 'final') ...[
+          const SizedBox(height: 8),
+          TvTeamsBar(teams: room.teams!, scores: teamTotals(room, ranking), size: 30),
+        ],
         const SizedBox(height: 10),
         Expanded(
           child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
