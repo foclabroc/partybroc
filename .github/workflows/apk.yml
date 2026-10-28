@@ -59,7 +59,12 @@ jobs:
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=partybroc\nkeyPassword=%s\n' \
             "$RUNNER_TEMP/partybroc-tv.jks" "$KEYSTORE_PW" "$KEYSTORE_PW" > android/key.properties
           flutter pub get
-          flutter build apk --release --target-platform android-arm,android-arm64
+          # un téléchargement raté chez GitHub (ex. CMake corrompu) : on réessaie une fois
+          flutter build apk --release --target-platform android-arm,android-arm64 || {
+            echo "Échec, nouvel essai dans 20 s"; sleep 20
+            rm -rf "$ANDROID_HOME/cmake" 2>/dev/null || true
+            flutter build apk --release --target-platform android-arm,android-arm64
+          }
           cp build/app/outputs/flutter-apk/app-release.apk ../partybroc-tv.apk
           rm -f android/key.properties "$RUNNER_TEMP/partybroc-tv.jks"
           # Fichier lu par l'appli TV pour savoir si une mise à jour existe
