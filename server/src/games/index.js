@@ -25,7 +25,7 @@ export const GAMES = [
     pitch: 'Votes anonymes : qui est le plus susceptible de… ?',
     options: { rounds: { label: 'Questions', values: QDN.rounds, def: QDN.defaultRounds } } },
   { id: 'reflexes',  title: 'Course de réflexes', emoji: '⚡', min: 1, ready: true, impl: ReflexesGame,
-    pitch: 'Feu vert, marathon de taps, couleurs, emojis : le plus rapide gagne.',
+    pitch: '8 épreuves éclair : feu vert, cibles, flèches, chrono… le plus rapide gagne.',
     options: { trials: { label: 'Épreuves', values: RFX.trials, def: RFX.defaultTrials } } },
   { id: 'droles',    title: 'Réponses drôles',  emoji: '😂', min: 3, ready: true, impl: DrolesGame,
     pitch: 'Complète la phrase, tout le monde vote pour la meilleure.',

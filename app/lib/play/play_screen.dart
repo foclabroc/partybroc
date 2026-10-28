@@ -640,47 +640,11 @@ class _LobbyView extends StatelessWidget {
         ],
         const SizedBox(height: 22),
 
-        // ---- Joueurs ----
-        Text('Joueurs (${room.players.length}/${room.maxPlayers})', style: Pb.t(18, weight: 600, color: Pb.muted)),
-        const SizedBox(height: 10),
-        for (final p in room.players)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(children: [
-              PbAvatar(size: 40, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}',
-                  style: Pb.t(18, weight: 500, color: p.connected ? Pb.text : Pb.muted),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (p.score > 0) Text(Pb.pts(p.score), style: Pb.t(16, weight: 600, color: Pb.yellow)),
-              if (isHost && p.pid != myPid)
-                IconButton(
-                  tooltip: 'Retirer du salon',
-                  icon: const Icon(Icons.close_rounded, color: Pb.muted, size: 20),
-                  onPressed: () => _confirmKick(context, p),
-                ),
-            ]),
-          ),
-        const SizedBox(height: 18),
-        PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
-
         // ---- Jeu ----
         if (isHost) ...[
           Text('Choisis le jeu', style: Pb.t(18, weight: 600, color: Pb.muted)),
           const SizedBox(height: 10),
-          for (final g in room.games)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _GameTile(g: g, selected: g.id == room.selectedGame, onTap: () {
-                HapticFeedback.selectionClick();
-                send({'t': 'select_game', 'game': g.id});
-              }),
-            ),
+          _GamePicker(room: room, send: send),
           if (game != null)
             for (final e in game.options.entries)
               Padding(
@@ -738,6 +702,37 @@ class _LobbyView extends StatelessWidget {
             ]),
           ),
         ],
+        const SizedBox(height: 22),
+
+        // ---- Joueurs ----
+        Text('Joueurs (${room.players.length}/${room.maxPlayers})', style: Pb.t(18, weight: 600, color: Pb.muted)),
+        const SizedBox(height: 10),
+        for (final p in room.players)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(children: [
+              PbAvatar(size: 40, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}',
+                  style: Pb.t(18, weight: 500, color: p.connected ? Pb.text : Pb.muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (p.score > 0) Text(Pb.pts(p.score), style: Pb.t(16, weight: 600, color: Pb.yellow)),
+              if (isHost && p.pid != myPid)
+                IconButton(
+                  tooltip: 'Retirer du salon',
+                  icon: const Icon(Icons.close_rounded, color: Pb.muted, size: 20),
+                  onPressed: () => _confirmKick(context, p),
+                ),
+            ]),
+          ),
+        const SizedBox(height: 18),
+        PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
+
         const SizedBox(height: 26),
         TextButton(onPressed: onLeave, child: Text('Quitter le salon', style: Pb.t(16, color: Pb.muted))),
         const Center(child: HomeIconButton()),
@@ -761,11 +756,71 @@ class _LobbyView extends StatelessWidget {
   }
 }
 
+/// Choix du jeu (hôte) : le jeu choisi, et la liste des jeux qui se déroule en le touchant
+class _GamePicker extends StatefulWidget {
+  const _GamePicker({required this.room, required this.send});
+  final RoomView room;
+  final void Function(Map<String, dynamic>) send;
+
+  @override
+  State<_GamePicker> createState() => _GamePickerState();
+}
+
+class _GamePickerState extends State<_GamePicker> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final room = widget.room;
+    final cur = room.games.where((g) => g.id == room.selectedGame).firstOrNull ?? room.games.first;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _GameTile(
+        g: cur,
+        selected: true,
+        trailing: AnimatedRotation(
+          turns: _open ? .5 : 0,
+          duration: const Duration(milliseconds: 200),
+          child: const Icon(Icons.expand_more_rounded, color: Pb.text, size: 30),
+        ),
+        onTap: () => setState(() => _open = !_open),
+      ),
+      AnimatedSize(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: !_open
+            ? const SizedBox(width: double.infinity)
+            : Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(children: [
+                  for (final g in room.games)
+                    if (g.id != cur.id)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _GameTile(
+                          g: g,
+                          selected: false,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            widget.send({'t': 'select_game', 'game': g.id});
+                            setState(() => _open = false);
+                          },
+                        ),
+                      ),
+                ]),
+              ),
+      ),
+      const SizedBox(height: 8),
+    ]);
+  }
+}
+
 class _GameTile extends StatelessWidget {
-  const _GameTile({required this.g, required this.selected, required this.onTap});
+  const _GameTile({required this.g, required this.selected, required this.onTap, this.trailing});
   final GameInfo g;
   final bool selected;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -796,6 +851,7 @@ class _GameTile extends StatelessWidget {
                 decoration: BoxDecoration(color: Pb.yellow.withValues(alpha: .15), borderRadius: BorderRadius.circular(10)),
                 child: Text('Bientôt', style: Pb.t(12, weight: 600, color: Pb.yellow)),
               ),
+            ?trailing,
           ]),
         ),
       ),
