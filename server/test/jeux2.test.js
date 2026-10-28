@@ -254,6 +254,61 @@ try {
       close(s);
       step('Le dernier debout : tous faux = personne ne sort, sans réponse = éliminé, dernier survivant + bonus, podium');
     }
+
+    // ---- Photo roulette ----
+    {
+      const s = await salon(['Alice', 'Bob', 'Carla']);
+      const [a, b, c] = s.ps;
+      const jpeg = (n) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60, n)]).toString('base64');
+      const http = (path) => fetch(`http://127.0.0.1:${PORT}${path}`);
+      await launch(s, 'photoroulette', { per: 3 });
+      await R(s.tv, (r) => r.game?.phase === 'intro');
+      s.host.send(g({ t: 'game_skip' }));
+      await R(s.tv, (r) => r.game?.phase === 'pick');
+      b.send(g({ t: 'phr_photo', data: Buffer.from('pas une image du tout').toString('base64') }));
+      assert.equal((await b.wait('error')).code, 'bad_photo');
+      for (let i = 0; i < 4; i++) a.send(g({ t: 'phr_photo', data: jpeg(i) })); // la 4e est de trop
+      b.send(g({ t: 'phr_photo', data: jpeg(9) }));
+      b.send(g({ t: 'phr_done' }));                    // Bob s'arrête à 1 photo
+      c.send(g({ t: 'phr_photo', data: jpeg(7) }));
+      c.send(g({ t: 'phr_clear' }));                   // Carla recommence
+      let st = (await R(s.tv, (r) => r.game?.phase === 'pick' && r.game.counts?.[a.me] === 3 && r.game.done?.includes(b.me) && r.game.counts?.[c.me] === 0)).room.game;
+      assert.equal(st.counts[a.me], 3);
+      assert.deepEqual(st.done.sort(), [a.me, b.me].sort());
+      c.send(g({ t: 'phr_photo', data: jpeg(8) }));
+      c.send(g({ t: 'phr_done' }));
+      const ask = (await R(s.tv, (r) => r.game?.phase === 'ask', 6000)).room.game;
+      assert.equal(ask.count, 5);
+      assert.equal(ask.owner, undefined, 'propriétaire caché');
+      const res = await http(ask.photo);
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'image/jpeg');
+      const n = (await res.arrayBuffer()).byteLength;
+      assert.equal(n, 64);
+      // On retrouve le propriétaire par le contenu (octet de remplissage)
+      const byte = new Uint8Array(await (await http(ask.photo)).arrayBuffer())[10];
+      const owner = byte <= 2 ? a : byte === 9 ? b : c;
+      const others = s.ps.filter((p) => p !== owner);
+      owner.send(g({ t: 'phr_guess', r: ask.index, pid: others[0].me })); // le propriétaire ne vote pas
+      others[0].send(g({ t: 'phr_guess', r: ask.index, pid: owner.me }));
+      others[1].send(g({ t: 'phr_guess', r: ask.index, pid: others[0].me }));
+      const rev = (await R(s.tv, (r) => r.game?.phase === 'reveal')).room.game;
+      assert.equal(rev.owner, owner.me);
+      assert.equal(rev.picks[owner.me], undefined);
+      const gain = (p) => rev.ranking.find((x) => x.pid === p.me).gain;
+      assert.ok(gain(others[0]) >= 500);
+      assert.equal(gain(others[1]), 0);
+      assert.equal(gain(owner), 50);
+      // Les photos des manches à venir ne sont pas accessibles, et tout disparaît à la fin
+      assert.equal((await http(`/r/${s.code}/0123456789abcdef`)).status, 404);
+      s.host.send(g({ t: 'game_end' }));
+      await R(s.tv, (r) => r.game?.phase === 'podium');
+      s.host.send(g({ t: 'game_skip' }));
+      await R(s.tv, (r) => !r.game);
+      assert.equal((await http(ask.photo)).status, 404);
+      close(s);
+      step('Photo roulette : photos vérifiées et limitées, « j’ai fini », recommencer, propriétaire caché et sans vote, photo servie puis effacée à la fin');
+    }
   }
 
   console.log(`\n${ok} étapes OK`);

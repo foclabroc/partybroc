@@ -7,6 +7,7 @@ import 'justeprix_ui.dart';
 import 'memoire_ui.dart';
 import 'petitbac_ui.dart';
 import 'quiadit_ui.dart';
+import 'photoroulette_ui.dart';
 import 'survie_ui.dart';
 import 'zoom_ui.dart';
 import 'droles_ui.dart';
@@ -27,6 +28,7 @@ Widget tvGameView(RoomView room) {
     'dessin' => DsnTv(room: room, live: live),
     'justeprix' => JpTv(room: room, live: live),
     'quiadit' => QadTv(room: room, live: live),
+    'photoroulette' => PhrTv(room: room, live: live),
     'calcul' => CalcTv(room: room, live: live),
     'memoire' => MemTv(room: room, live: live),
     'petitbac' => BacTv(room: room, live: live),

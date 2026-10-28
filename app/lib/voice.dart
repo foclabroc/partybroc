@@ -166,6 +166,10 @@ class VoiceDirector {
         if (phase == 'write') return 'Répondez en secret sur votre téléphone !';
         if (phase == 'ask') return '${s('prompt')} : ${s('text')}. Qui a écrit ça ?';
         if (phase == 'reveal') return 'C’était ${name(live['author'])} !';
+      case 'photoroulette':
+        if (phase == 'pick') return 'Choisissez vos photos sur votre téléphone !';
+        if (phase == 'ask') return 'À qui est cette photo ?';
+        if (phase == 'reveal') return 'C’était à ${name(live['owner'])} !';
       case 'calcul':
         if (phase == 'ask') return '${s('expr')} ?';
         if (phase == 'reveal') return 'Résultat : ${live['value']}';

@@ -10,6 +10,7 @@ import '../games/justeprix_ui.dart';
 import '../games/memoire_ui.dart';
 import '../games/petitbac_ui.dart';
 import '../games/quiadit_ui.dart';
+import '../games/photoroulette_ui.dart';
 import '../games/survie_ui.dart';
 import '../games/zoom_ui.dart';
 import '../games/draw_board.dart';
@@ -440,6 +441,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return JpPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'quiadit':
         return QadPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'photoroulette':
+        return PhrPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
       case 'calcul':
         return CalcPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'memoire':

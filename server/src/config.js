@@ -29,5 +29,5 @@ export const config = {
   // Taille max d'une photo de profil (déjà réduite par l'appli)
   maxAvatarBytes: 60 * 1024,
   // Taille max d'un message WebSocket
-  maxPayload: 128 * 1024,
+  maxPayload: 400 * 1024, // une photo de Photo roulette (≤ 220 Ko, en base64)
 };

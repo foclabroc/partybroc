@@ -82,6 +82,16 @@ function handleHttp(req, res) {
     return;
   }
 
+  // Photo roulette : /r/CODE/id (seulement la photo de la manche en cours ou passée)
+  const r = url.pathname.match(/^\/r\/([A-Z]{4,12})\/([0-9a-f]{16})$/);
+  if (r) {
+    const ph = rooms.get(r[1])?.game?.photo?.(r[2]);
+    if (!ph) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': ph.type, 'cache-control': 'private, max-age=600', 'x-content-type-options': 'nosniff' });
+    res.end(ph.buf);
+    return;
+  }
+
   serveStatic(req, res, url.pathname);
 }
 

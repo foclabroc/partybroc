@@ -13,6 +13,7 @@ import { MemoireGame, MEM } from './memoire.js';
 import { PetitBacGame, PBAC } from './petitbac.js';
 import { ZoomGame, ZOOM } from './zoom.js';
 import { SurvieGame, SURV } from './survie.js';
+import { PhotoRouletteGame, PHR } from './photoroulette.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, ready: true, impl: DessinGame,
@@ -54,6 +55,9 @@ export const GAMES = [
   { id: 'survie',    title: 'Le dernier debout', emoji: '🏁', min: 2, ready: true, impl: SurvieGame,
     pitch: 'Vrai ou faux ? Une erreur et tu es éliminé.',
     options: { rounds: { label: 'Questions max', values: SURV.rounds, def: SURV.defaultRounds } } },
+  { id: 'photoroulette', title: 'Photo roulette', emoji: '📸', min: 3, ready: true, impl: PhotoRouletteGame,
+    pitch: 'Chacun choisit des photos de son tel : à qui est celle-ci ?',
+    options: { per: { label: 'Photos chacun', values: PHR.perPlayer, def: PHR.defaultPerPlayer } } },
 ];
 
 export const gameById = (id) => GAMES.find((g) => g.id === id) || null;

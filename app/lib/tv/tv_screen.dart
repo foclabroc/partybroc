@@ -594,6 +594,8 @@ class _GamesStrip extends StatelessWidget {
   const _GamesStrip({required this.room});
   final RoomView room;
 
+  int get _perRow => room.games.length > 12 ? 7 : 6;
+
   @override
   Widget build(BuildContext context) {
     final host = room.host;
@@ -605,15 +607,15 @@ class _GamesStrip extends StatelessWidget {
         style: Pb.t(28, color: Pb.muted),
       ),
       const SizedBox(height: 14),
-      // 12 jeux : deux rangées de 6
-      for (var row = 0; row * 6 < room.games.length; row++) ...[
+      // Les jeux sur deux rangées (6 ou 7 par rangée)
+      for (var row = 0; row * _perRow < room.games.length; row++) ...[
         if (row > 0) const SizedBox(height: 12),
         Row(children: [
-          for (var i = row * 6; i < row * 6 + 6; i++) ...[
-            if (i > row * 6) const SizedBox(width: 16),
+          for (var i = row * _perRow; i < row * _perRow + _perRow; i++) ...[
+            if (i > row * _perRow) const SizedBox(width: 14),
             Expanded(
               child: i < room.games.length
-                  ? _GameCard(g: room.games[i], selected: room.games[i].id == room.selectedGame)
+                  ? _GameCard(g: room.games[i], selected: room.games[i].id == room.selectedGame, compact: _perRow > 6)
                   : const SizedBox.shrink(),
             ),
           ],
@@ -624,16 +626,17 @@ class _GamesStrip extends StatelessWidget {
 }
 
 class _GameCard extends StatelessWidget {
-  const _GameCard({required this.g, required this.selected});
+  const _GameCard({required this.g, required this.selected, this.compact = false});
   final GameInfo g;
   final bool selected;
+  final bool compact; // 7 par rangée : titre sur 2 lignes, sans le nombre de joueurs
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       height: 86,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 14),
       decoration: BoxDecoration(
         color: selected ? Pb.cardHi : Pb.card.withValues(alpha: .6),
         borderRadius: BorderRadius.circular(28),
@@ -641,14 +644,15 @@ class _GameCard extends StatelessWidget {
         boxShadow: selected ? [BoxShadow(color: Pb.pink.withValues(alpha: .35), blurRadius: 30)] : null,
       ),
       child: Row(children: [
-        Text(g.emoji, style: const TextStyle(fontSize: 38)),
-        const SizedBox(width: 12),
+        Text(g.emoji, style: TextStyle(fontSize: compact ? 32 : 38)),
+        SizedBox(width: compact ? 8 : 12),
         Expanded(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(g.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(23, weight: 600, height: 1.1)),
-            Text(g.ready ? '${g.min}+ joueurs' : 'Bientôt',
-                style: Pb.t(19, color: g.ready ? Pb.muted : Pb.yellow)),
-          ]),
+          child: compact
+              ? Text(g.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Pb.t(22, weight: 600, height: 1.05))
+              : Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(g.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(23, weight: 600, height: 1.1)),
+                  Text(g.ready ? '${g.min}+ joueurs' : 'Bientôt', style: Pb.t(19, color: g.ready ? Pb.muted : Pb.yellow)),
+                ]),
         ),
       ]),
     );
