@@ -4,6 +4,7 @@ import '../models.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
+import '../widgets/fireworks.dart';
 
 /// Lecture tolérante de l'état envoyé par le serveur
 extension Live on Map<String, dynamic> {
@@ -151,6 +152,14 @@ class TvPodium extends StatelessWidget {
     final ranking = live.ranking;
     GameRank? at(int i) => i < ranking.length ? ranking[i] : null;
     final rest = ranking.skip(3).toList();
+    // Feu d'artifice et confettis par-dessus le podium
+    return Stack(children: [
+      _content(ranking, at, rest),
+      const Positioned.fill(child: Fireworks()),
+    ]);
+  }
+
+  Widget _content(List<GameRank> ranking, GameRank? Function(int) at, List<GameRank> rest) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(80, 50, 80, 40),
       child: Column(children: [
@@ -285,12 +294,15 @@ Widget phoneGain(Map<String, dynamic>? you, {String good = 'Bien joué !', Strin
 Widget phoneRank(Map<String, dynamic>? you) {
   final rank = you.yi('rank');
   final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '🎯' };
-  return PhoneCenter(
+  final center = PhoneCenter(
     emoji: medal,
     title: rank == null ? 'Fin de la partie' : '${rank == 1 ? '1re' : '${rank}e'} place !',
     sub: '${Pb.pts(you.yi('score') ?? 0)} points · ${you.yi('players') ?? 0} joueurs',
     color: rank == 1 ? Pb.yellow : Pb.text,
   );
+  // Le gagnant a aussi son feu d'artifice sur son téléphone
+  if (rank != 1) return center;
+  return Stack(children: [center, const Positioned.fill(child: Fireworks(seconds: 5))]);
 }
 
 /// Barre de l'hôte : passer / arrêter, ou retour au salon depuis le podium

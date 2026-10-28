@@ -11,6 +11,7 @@ import '../games/tv_game.dart';
 import '../live_feed.dart';
 import '../models.dart';
 import '../music.dart';
+import '../sfx.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
@@ -35,6 +36,7 @@ class _TvScreenState extends State<TvScreen> {
   late final AppLifecycleListener _life;
   bool _dialog = false;
   TvUpdate? _update; // nouvelle version de l'appli TV disponible
+  final _sfx = SfxDirector(); // bruitages d'après l'état du salon
   Timer? _updateTimer;
   DateTime _lastCheck = DateTime(2000);
 
@@ -60,6 +62,7 @@ class _TvScreenState extends State<TvScreen> {
       _prefs = p;
       _sock.connect();
     });
+    Sfx.instance.init();
     Music.instance.init().then((_) {
       if (mounted) setState(() {});
       Music.instance.play('salon');
@@ -122,6 +125,7 @@ class _TvScreenState extends State<TvScreen> {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _error = null;
         });
+        _sfx.onRoom(m['room'] as Map<String, dynamic>);
         // Musique : « jeu » pendant une partie, « salon » au salon et au podium
         final live = _room!.live;
         Music.instance.play(live != null && live['phase'] != 'podium' ? 'jeu' : 'salon');
@@ -155,6 +159,7 @@ class _TvScreenState extends State<TvScreen> {
   @override
   void dispose() {
     _life.dispose();
+    _sfx.dispose();
     _updateTimer?.cancel();
     _sub?.cancel();
     _sock.dispose();
@@ -315,13 +320,22 @@ class _Lobby extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           const PbLogo(size: 64),
-          const Spacer(),
-          // Boutons pilotables à la télécommande (flèches + OK), le focus est bien visible
+          const SizedBox(width: 30),
+          // Boutons pilotables à la télécommande (flèches + OK), le focus est bien visible.
+          // Rétrécis si besoin (Mise à jour + Quitter en plus sur l'appli TV).
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (onUpdate != null) ...[
             TvButton(icon: Icons.system_update_rounded, label: 'Mise à jour', onPressed: onUpdate!, highlight: true, autofocus: true),
             const SizedBox(width: 16),
           ],
           _MusicButton(autofocus: onUpdate == null),
+          const SizedBox(width: 16),
+          const _SfxButton(),
           const SizedBox(width: 16),
           TvButton(icon: Icons.lock_rounded, label: 'Salon permanent', onPressed: onPerm),
           const SizedBox(width: 16),
@@ -330,6 +344,10 @@ class _Lobby extends StatelessWidget {
             const SizedBox(width: 16),
             TvButton(icon: Icons.power_settings_new_rounded, label: 'Quitter', onPressed: onQuit),
           ],
+                ]),
+              ),
+            ),
+          ),
         ]),
         const SizedBox(height: 26),
         Expanded(
@@ -735,6 +753,29 @@ class _PermDialogState extends State<_PermDialog> {
         onPressed: tap,
         child: Text(label),
       );
+}
+
+/// Bouton des bruitages (indépendant de la musique)
+class _SfxButton extends StatefulWidget {
+  const _SfxButton();
+
+  @override
+  State<_SfxButton> createState() => _SfxButtonState();
+}
+
+class _SfxButtonState extends State<_SfxButton> {
+  @override
+  Widget build(BuildContext context) {
+    final muted = Sfx.instance.muted;
+    return TvButton(
+      icon: muted ? Icons.volume_off_rounded : Icons.campaign_rounded,
+      label: muted ? 'Bruitages coupés' : 'Bruitages',
+      onPressed: () async {
+        await Sfx.instance.toggle();
+        if (mounted) setState(() {});
+      },
+    );
+  }
 }
 
 /// Boîte de dialogue lisible de loin, pilotable à la télécommande

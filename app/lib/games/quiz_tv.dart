@@ -5,6 +5,7 @@ import '../theme.dart';
 import 'common_ui.dart' show rowAvatar;
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
+import '../widgets/fireworks.dart';
 import 'quiz_state.dart';
 
 /// Quiz sur la TV (toile 1920×1080).
@@ -19,7 +20,7 @@ class QuizTv extends StatelessWidget {
       'intro' => _Intro(q: q),
       'question' || 'reveal' => _Question(room: room, q: q),
       'scores' => _Scores(room: room, q: q),
-      'podium' => _Podium(room: room, q: q),
+      'podium' => Stack(children: [_Podium(room: room, q: q), const Positioned.fill(child: Fireworks())]),
       _ => const SizedBox.shrink(),
     };
     return AnimatedSwitcher(

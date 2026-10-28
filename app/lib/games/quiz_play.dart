@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models.dart';
 import '../theme.dart';
 import '../widgets/countdown.dart';
+import '../widgets/fireworks.dart';
 import 'quiz_state.dart';
 
 /// Quiz sur le téléphone : 4 gros boutons, puis le résultat.
@@ -145,12 +146,14 @@ class QuizPlay extends StatelessWidget {
     final y = you;
     final rank = y?.rank;
     final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '🎯' };
-    return _center(
+    final view = _center(
       final_ ? medal : '📊',
       rank == null ? 'Classement' : '${rank == 1 ? '1re' : '${rank}e'} place${final_ ? ' !' : ''}',
       '${Pb.pts(y?.score ?? 0)} points · ${y?.players ?? 0} joueurs',
       color: rank == 1 ? Pb.yellow : Pb.text,
     );
+    if (!final_ || rank != 1) return view;
+    return Stack(children: [view, const Positioned.fill(child: Fireworks(seconds: 5))]);
   }
 
   Widget _center(String emoji, String title, String? sub, {Color color = Pb.text, Widget? extra}) {
