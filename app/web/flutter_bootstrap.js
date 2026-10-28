@@ -86,6 +86,48 @@
   window.addEventListener('focus', back);
   window.addEventListener('pageshow', (e) => { if (e.persisted) { hiddenAt = Date.now() - 2000; back(); } });
 
+  // ---- Téléphone : plein écran, écran toujours allumé, icône sur l'écran d'accueil ----
+  // Lancé depuis l'icône de l'écran d'accueil : déjà sans barre du navigateur
+  const installed = matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches
+    || navigator.standalone === true;
+  const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isPhone) {
+    // Plein écran au premier appui (le navigateur l'exige après un geste) ; s'il en sort
+    // (geste Retour…), on y revient à l'appui suivant. Pas sur iPhone (Safari refuse).
+    const el = document.documentElement;
+    const goFull = () => {
+      if (installed || document.fullscreenElement || !el.requestFullscreen) return;
+      el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    };
+    document.addEventListener('pointerup', goFull, true);
+    // Écran qui ne s'éteint pas pendant qu'on joue (repris au retour sur la page)
+    let lock = null;
+    const wake = async () => {
+      if (!('wakeLock' in navigator) || document.visibilityState !== 'visible' || lock) return;
+      try {
+        lock = await navigator.wakeLock.request('screen');
+        lock.addEventListener('release', () => { lock = null; });
+      } catch (e) { lock = null; }
+    };
+    document.addEventListener('pointerup', wake, true);
+    document.addEventListener('visibilitychange', wake);
+    wake();
+  }
+  // Ajouter à l'écran d'accueil : Android propose une vraie installation (on garde la
+  // demande pour le bouton de l'appli) ; iPhone : il faut passer par le menu Partager.
+  let installAsk = null;
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installAsk = e; });
+  window.addEventListener('appinstalled', () => { installAsk = null; });
+  window.pbInstallKind = () => (installed ? 'done' : installAsk ? 'prompt' : isIos ? 'ios' : 'none');
+  window.pbInstall = async () => {
+    if (!installAsk) return false;
+    const e = installAsk;
+    installAsk = null;
+    e.prompt();
+    const r = await e.userChoice;
+    return r && r.outcome === 'accepted';
+  };
+
   _flutter.loader.load({
     config: config,
     onEntrypointLoaded: async function (engineInitializer) {

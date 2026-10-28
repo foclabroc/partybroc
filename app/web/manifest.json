@@ -1,8 +1,8 @@
 {
     "name": "PartyBroc",
     "short_name": "PartyBroc",
-    "start_url": ".",
-    "display": "standalone",
+    "start_url": "/play",
+    "display": "fullscreen",
     "background_color": "#17102B",
     "theme_color": "#17102B",
     "description": "Jeux de soirée : la TV affiche, les téléphones jouent.",
@@ -31,5 +31,11 @@
             "type": "image/png",
             "purpose": "maskable"
         }
+    ],
+    "id": "/play",
+    "scope": "/",
+    "display_override": [
+        "fullscreen",
+        "standalone"
     ]
 }

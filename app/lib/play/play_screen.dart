@@ -27,6 +27,7 @@ import '../games/party_ui.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import 'home_icon/home_icon.dart';
 import 'profile.dart';
 
 enum _Step { loading, form, joining, lobby }
@@ -507,6 +508,8 @@ class _PlayScreenState extends State<PlayScreen> {
         ],
         const SizedBox(height: 24),
         FilledButton(onPressed: _join, child: const Text("C'est parti !")),
+        const SizedBox(height: 12),
+        const Center(child: HomeIconButton()),
       ],
     );
   }
@@ -737,6 +740,7 @@ class _LobbyView extends StatelessWidget {
         ],
         const SizedBox(height: 26),
         TextButton(onPressed: onLeave, child: Text('Quitter le salon', style: Pb.t(16, color: Pb.muted))),
+        const Center(child: HomeIconButton()),
       ],
     );
   }
