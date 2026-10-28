@@ -21,7 +21,7 @@ La TV ouvre un salon et affiche un code et un QR. Jusqu'à 15 joueurs. Chaque jo
 | 🔍 | Zoom mystère | ✅ une image très zoomée qui se dévoile |
 | 🏁 | Le dernier debout | ✅ vrai ou faux, une erreur et on sort |
 
-Musique originale (salon + jeu) sur l'écran TV, générée par `tools/musique.py` : remplaçable par d'autres `.ogg` dans `app/assets/music/`.
+Musique sur l'écran TV (morceaux [Mixkit](https://mixkit.co/free-stock-music/), licence gratuite) : 5 morceaux au salon en lecture aléatoire, un pendant les jeux. Remplaçables par d'autres `.ogg` dans `app/assets/music/` (liste dans `app/lib/music.dart`).
 
 ## Organisation
 

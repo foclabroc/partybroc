@@ -1,15 +1,26 @@
+import 'dart:math';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Musique de fond de l'écran TV : « salon » au salon et au podium, « jeu » pendant les parties.
-/// Les fichiers sont dans assets/music/ (boucles .ogg, remplaçables).
+/// Salon : les morceaux salon1…salon5.ogg en lecture aléatoire (le suivant démarre tout seul,
+/// jamais deux fois le même d'affilée). Jeu : jeu.ogg en boucle. Fichiers dans assets/music/
+/// (musiques Mixkit, licence gratuite sans mention obligatoire).
 class Music {
   Music._();
   static final instance = Music._();
 
+  static const playlists = <String, List<String>>{
+    'salon': ['salon1', 'salon2', 'salon3', 'salon4', 'salon5'],
+    'jeu': ['jeu'],
+  };
+
   final _player = AudioPlayer();
-  String? _want; // piste demandée
-  String? _playing; // piste réellement lancée
+  final _rnd = Random();
+  String? _want; // ambiance demandée ('salon' ou 'jeu')
+  String? _playing; // ambiance réellement lancée
+  String? _last; // dernier morceau joué (pour ne pas le rejouer tout de suite)
   bool muted = false;
   bool _ready = false;
   static const volume = 0.45;
@@ -20,8 +31,11 @@ class Music {
     try {
       final p = await SharedPreferences.getInstance();
       muted = p.getBool('pb_muted') ?? false;
-      await _player.setReleaseMode(ReleaseMode.loop);
       await _player.setVolume(volume);
+      // Fin d'un morceau du salon : le suivant, au hasard
+      _player.onPlayerComplete.listen((_) {
+        if (!muted && _playing != null && _playing == _want && playlists[_playing]!.length > 1) _start();
+      });
     } catch (_) {}
   }
 
@@ -35,10 +49,16 @@ class Music {
   Future<void> _start() async {
     final t = _want;
     if (t == null) return;
+    final list = playlists[t] ?? [t];
+    final choices = list.length > 1 ? list.where((x) => x != _last).toList() : list;
+    final track = choices[_rnd.nextInt(choices.length)];
     try {
       await _player.stop();
-      await _player.play(AssetSource('music/$t.ogg'), volume: volume);
+      // Une seule piste (jeu) : en boucle ; une liste (salon) : on enchaîne à la fin
+      await _player.setReleaseMode(list.length > 1 ? ReleaseMode.stop : ReleaseMode.loop);
+      await _player.play(AssetSource('music/$track.ogg'), volume: volume);
       _playing = t;
+      _last = track;
     } catch (_) {
       // Navigateur : la lecture automatique est bloquée tant qu'on n'a pas touché l'écran.
       _playing = null;
