@@ -30,13 +30,18 @@ function serveStatic(req, res, urlPath) {
   if (!st || st.isDirectory()) { file = path.join(root, 'index.html'); st = fs.existsSync(file) ? fs.statSync(file) : null; }
   if (!st) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Site non compilé (flutter build web).'); return; }
   const ext = path.extname(file).toLowerCase();
-  // index.html et le service worker jamais en cache, le reste oui
-  const noCache = /index\.html$|flutter_service_worker\.js$|version\.json$|flutter_bootstrap\.js$/.test(file);
-  res.writeHead(200, {
+  // Les noms de fichiers ne changent pas d'une version à l'autre (main.dart.js…) : le
+  // navigateur revérifie toujours (no-cache), et l'ETag lui évite de retélécharger si
+  // rien n'a changé (réponse 304). Avant, max-age=1 jour gardait une vieille appli.
+  const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+  const headers = {
     'content-type': MIME[ext] || 'application/octet-stream',
-    'cache-control': noCache ? 'no-cache' : 'public, max-age=86400',
+    'cache-control': 'no-cache',
+    etag,
     'x-content-type-options': 'nosniff',
-  });
+  };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers).end(); return; }
+  res.writeHead(200, headers);
   if (req.method === 'HEAD') { res.end(); return; }
   fs.createReadStream(file).pipe(res);
 }
