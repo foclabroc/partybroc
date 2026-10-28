@@ -46,7 +46,15 @@ function serveStatic(req, res, urlPath) {
   fs.createReadStream(file).pipe(res);
 }
 
+// Une requête bizarre (adresse mal encodée…) ne doit jamais faire tomber le serveur
 const server = http.createServer((req, res) => {
+  try { handleHttp(req, res); } catch (e) {
+    console.warn('[http]', req.url, e.message);
+    if (!res.headersSent) res.writeHead(400).end(); else res.destroy();
+  }
+});
+
+function handleHttp(req, res) {
   const url = new URL(req.url, 'http://x');
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return; }
 
@@ -71,10 +79,20 @@ const server = http.createServer((req, res) => {
   }
 
   serveStatic(req, res, url.pathname);
-});
+}
 
 // ------------------------------------------------------------ WebSocket
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: config.maxPayload });
+
+// Adresse du joueur : Caddy (devant nous, en local) la met en dernier dans X-Forwarded-For
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return String(xff).split(',').pop().trim();
+  return req.socket.remoteAddress || '?';
+}
+const connsByIp = new Map();
+// Salons ouverts par une même adresse (une maison = une adresse, même avec 10 téléphones)
+const roomsOpenedBy = (ip) => [...rooms.rooms.values()].filter((r) => !r.closed && r.ip === ip).length;
 
 function err(ws, msg, code = 'error') { send(ws, { t: 'error', code, msg }); }
 
@@ -104,7 +122,9 @@ const handlers = {
     if (room && room.tvToken === m.tvToken) {
       if (room.tv && room.tv !== ws) { send(room.tv, { t: 'replaced' }); room.tv.ctx = {}; room.tv.close(4000, 'remplacé'); }
     } else {
+      if (roomsOpenedBy(ws.ip) >= config.maxRoomsPerIp) return err(ws, 'Trop de salons ouverts depuis ta connexion', 'refused');
       room = await rooms.create();
+      room.ip = ws.ip;
     }
     room.tv = ws;
     ws.ctx = { role: 'tv', room };
@@ -227,6 +247,14 @@ const handlers = {
 };
 
 wss.on('connection', (ws, req) => {
+  ws.ip = clientIp(req);
+  const n = (connsByIp.get(ws.ip) || 0) + 1;
+  if (n > config.maxConnsPerIp) { ws.close(1008, 'trop de connexions'); return; }
+  connsByIp.set(ws.ip, n);
+  ws.on('close', () => {
+    const left = (connsByIp.get(ws.ip) || 1) - 1;
+    if (left > 0) connsByIp.set(ws.ip, left); else connsByIp.delete(ws.ip);
+  });
   ws.ctx = {};
   ws.alive = true;
   ws.budget = { t: Date.now(), n: 0 };

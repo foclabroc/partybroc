@@ -15,6 +15,9 @@ export const config = {
   dbUrl: process.env.PB_DB_URL || '',
 
   maxRooms: 50,
+  // Par adresse IP (tous les appareils d'une maison partagent la même)
+  maxRoomsPerIp: 5,
+  maxConnsPerIp: 40,
   maxPlayers: 10,
   // Un joueur déconnecté garde sa place ce temps-là (téléphone en veille, etc.)
   playerGraceMs: 3 * 60 * 1000,
