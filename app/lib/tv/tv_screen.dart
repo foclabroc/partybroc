@@ -13,6 +13,7 @@ import '../music.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import 'tv_keys.dart';
 import 'update/update.dart';
 
 /// Écran de la TV : code + QR à gauche, joueurs à droite, jeux en bas.
@@ -89,7 +90,7 @@ class _TvScreenState extends State<TvScreen> {
   Future<void> _permDialog() async {
     if (_dialog) return;
     _dialog = true;
-    final r = await showDialog<_PermRequest>(context: context, builder: (_) => const _PermDialog());
+    final r = await showDialog<_PermRequest>(context: context, builder: (_) => const TvKeys(child: _PermDialog()));
     _dialog = false;
     if (r == null) return;
     setState(() => _error = null);
@@ -175,7 +176,7 @@ class _TvScreenState extends State<TvScreen> {
     final u = _update;
     if (u == null || _dialog || !mounted) return;
     _dialog = true;
-    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => _UpdateDialog(update: u));
+    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => TvKeys(child: _UpdateDialog(update: u)));
     _dialog = false;
   }
 
@@ -186,11 +187,11 @@ class _TvScreenState extends State<TvScreen> {
     _dialog = true;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => _TvDialog(
+      builder: (ctx) => TvKeys(child: _TvDialog(
         title: inGame ? 'Arrêter la partie ?' : 'Quitter PartyBroc TV ?',
         text: inGame ? 'On revient au salon. Les points déjà gagnés sont gardés.' : 'Le salon reste ouvert 15 minutes si tu reviens.',
         yes: inGame ? 'Arrêter la partie' : 'Quitter',
-      ),
+      )),
     );
     _dialog = false;
     if (ok != true) return;
@@ -211,17 +212,7 @@ class _TvScreenState extends State<TvScreen> {
         if (!didPop && !kIsWeb) _onBack();
       },
       // Télécommande : flèches = changer de bouton, OK = appuyer (aussi dans un navigateur)
-      child: Shortcuts(
-        shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.arrowLeft): DirectionalFocusIntent(TraversalDirection.left),
-          SingleActivator(LogicalKeyboardKey.arrowRight): DirectionalFocusIntent(TraversalDirection.right),
-          SingleActivator(LogicalKeyboardKey.arrowUp): DirectionalFocusIntent(TraversalDirection.up),
-          SingleActivator(LogicalKeyboardKey.arrowDown): DirectionalFocusIntent(TraversalDirection.down),
-          SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
-          SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
-        },
+      child: TvKeys(
         child: _content(),
       ),
     );
@@ -681,14 +672,13 @@ class _PermDialogState extends State<_PermDialog> {
           ),
           const SizedBox(height: 16),
           Row(children: [
-            Expanded(child: _tab('Ouvrir', !_create, () => setState(() => _create = false))),
+            Expanded(child: _tab('Ouvrir', !_create, () => setState(() => _create = false), autofocus: true)),
             const SizedBox(width: 10),
             Expanded(child: _tab('Créer', _create, () => setState(() => _create = true))),
           ]),
           const SizedBox(height: 16),
           TextField(
             controller: _code,
-            autofocus: true,
             textCapitalization: TextCapitalization.characters,
             textInputAction: TextInputAction.next,
             maxLength: 12,
@@ -722,7 +712,8 @@ class _PermDialogState extends State<_PermDialog> {
     );
   }
 
-  Widget _tab(String label, bool on, VoidCallback tap) => OutlinedButton(
+  Widget _tab(String label, bool on, VoidCallback tap, {bool autofocus = false}) => OutlinedButton(
+        autofocus: autofocus,
         style: OutlinedButton.styleFrom(
           backgroundColor: on ? Pb.pink : null,
           minimumSize: const Size.fromHeight(48),
