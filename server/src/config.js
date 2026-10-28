@@ -16,12 +16,12 @@ export const config = {
 
   maxRooms: 50,
   // Par adresse IP (tous les appareils d'une maison partagent la même)
-  maxRoomsPerIp: 5,
+  maxRoomsPerIp: Number(process.env.PB_ROOMS_PER_IP || 5),
   maxConnsPerIp: 40,
   // Salons permanents (en base) et joueurs gardés par salon
   maxPermRooms: 30,
   maxMembers: 60,
-  maxPlayers: 10,
+  maxPlayers: 15,
   // Un joueur déconnecté garde sa place ce temps-là (téléphone en veille, etc.)
   playerGraceMs: 3 * 60 * 1000,
   // Un salon sans TV ni joueur connecté est fermé au bout de ce temps

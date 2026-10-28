@@ -434,18 +434,19 @@ class _PlayersGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const perRow = 5;
+    // Jusqu'à 15 places : 3 rangées de 5, plus petites
     final slots = room.maxPlayers;
+    final small = slots > 10;
     return Wrap(
-      spacing: 26,
-      runSpacing: 34,
+      spacing: small ? 22 : 26,
+      runSpacing: small ? 12 : 34,
       children: [
         for (var i = 0; i < slots; i++)
           SizedBox(
-            width: 196,
+            width: small ? 170 : 196,
             child: i < room.players.length
-                ? _PlayerTile(key: ValueKey(room.players[i].pid), p: room.players[i], host: room.players[i].pid == room.hostPid)
-                : _EmptySlot(first: i == room.players.length && i < perRow * 2),
+                ? _PlayerTile(key: ValueKey(room.players[i].pid), p: room.players[i], host: room.players[i].pid == room.hostPid, small: small)
+                : _EmptySlot(first: i == room.players.length, small: small),
           ),
       ],
     );
@@ -453,9 +454,9 @@ class _PlayersGrid extends StatelessWidget {
 }
 
 class _PlayerTile extends StatelessWidget {
-  const _PlayerTile({super.key, required this.p, required this.host});
+  const _PlayerTile({super.key, required this.p, required this.host, this.small = false});
   final PlayerView p;
-  final bool host;
+  final bool host, small;
 
   @override
   Widget build(BuildContext context) {
@@ -466,7 +467,7 @@ class _PlayerTile extends StatelessWidget {
       builder: (_, v, child) => Transform.scale(scale: v, child: child),
       child: Column(children: [
         Stack(clipBehavior: Clip.none, children: [
-          PbAvatar(size: 156, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
+          PbAvatar(size: small ? 112 : 156, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
           if (host)
             Positioned(
               top: -26,
@@ -481,39 +482,40 @@ class _PlayerTile extends StatelessWidget {
               child: Text('📵', style: TextStyle(fontSize: 40)),
             ),
         ]),
-        const SizedBox(height: 14),
+        SizedBox(height: small ? 6 : 14),
         Text(
           p.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: Pb.t(34, weight: 600, color: p.connected ? Pb.text : Pb.muted),
+          style: Pb.t(small ? 28 : 34, weight: 600, color: p.connected ? Pb.text : Pb.muted),
         ),
-        if (p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(26, weight: 600, color: Pb.yellow)),
+        if (p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(small ? 22 : 26, weight: 600, color: Pb.yellow, height: 1.1)),
       ]),
     );
   }
 }
 
 class _EmptySlot extends StatelessWidget {
-  const _EmptySlot({required this.first});
-  final bool first;
+  const _EmptySlot({required this.first, this.small = false});
+  final bool first, small;
 
   @override
   Widget build(BuildContext context) {
+    final s = small ? 112.0 : 156.0;
     return Column(children: [
       Container(
-        width: 156,
-        height: 156,
+        width: s,
+        height: s,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: Pb.card.withValues(alpha: first ? .7 : .35),
           border: Border.all(color: Pb.cardHi.withValues(alpha: first ? 1 : .5), width: 4),
         ),
         alignment: Alignment.center,
-        child: Text(first ? '?' : '', style: Pb.t(70, weight: 600, color: Pb.muted)),
+        child: Text(first ? '?' : '', style: Pb.t(small ? 52 : 70, weight: 600, color: Pb.muted)),
       ),
-      const SizedBox(height: 14),
-      Text(first ? 'En attente…' : '', style: Pb.t(30, color: Pb.muted)),
+      SizedBox(height: small ? 6 : 14),
+      Text(first ? 'En attente…' : '', style: Pb.t(small ? 24 : 30, color: Pb.muted)),
     ]);
   }
 }
@@ -533,12 +535,20 @@ class _GamesStrip extends StatelessWidget {
         style: Pb.t(28, color: Pb.muted),
       ),
       const SizedBox(height: 14),
-      Row(children: [
-        for (final g in room.games) ...[
-          Expanded(child: _GameCard(g: g, selected: g.id == room.selectedGame)),
-          if (g != room.games.last) const SizedBox(width: 20),
-        ],
-      ]),
+      // 12 jeux : deux rangées de 6
+      for (var row = 0; row * 6 < room.games.length; row++) ...[
+        if (row > 0) const SizedBox(height: 12),
+        Row(children: [
+          for (var i = row * 6; i < row * 6 + 6; i++) ...[
+            if (i > row * 6) const SizedBox(width: 16),
+            Expanded(
+              child: i < room.games.length
+                  ? _GameCard(g: room.games[i], selected: room.games[i].id == room.selectedGame)
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ]),
+      ],
     ]);
   }
 }
@@ -552,8 +562,8 @@ class _GameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      height: 112,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      height: 86,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: selected ? Pb.cardHi : Pb.card.withValues(alpha: .6),
         borderRadius: BorderRadius.circular(28),
@@ -561,13 +571,13 @@ class _GameCard extends StatelessWidget {
         boxShadow: selected ? [BoxShadow(color: Pb.pink.withValues(alpha: .35), blurRadius: 30)] : null,
       ),
       child: Row(children: [
-        Text(g.emoji, style: const TextStyle(fontSize: 46)),
-        const SizedBox(width: 14),
+        Text(g.emoji, style: const TextStyle(fontSize: 38)),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(g.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Pb.t(25, weight: 600, height: 1.1)),
+            Text(g.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(23, weight: 600, height: 1.1)),
             Text(g.ready ? '${g.min}+ joueurs' : 'Bientôt',
-                style: Pb.t(21, color: g.ready ? Pb.muted : Pb.yellow)),
+                style: Pb.t(19, color: g.ready ? Pb.muted : Pb.yellow)),
           ]),
         ),
       ]),

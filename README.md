@@ -2,7 +2,7 @@
 
 Jeux de soirée façon Jackbox : **la TV affiche, les téléphones jouent**.
 
-La TV ouvre un salon et affiche un code et un QR. Chaque joueur scanne avec son téléphone, choisit un pseudo et une photo de profil (selfie, galerie ou emoji), et rejoint. Rien à installer : tout se passe dans le navigateur.
+La TV ouvre un salon et affiche un code et un QR. Jusqu'à 15 joueurs. Chaque joueur scanne avec son téléphone, choisit un pseudo et une photo de profil (selfie, galerie ou emoji), et rejoint. Rien à installer : tout se passe dans le navigateur.
 
 ## Jeux
 
@@ -13,6 +13,13 @@ La TV ouvre un salon et affiche un code et un QR. Chaque joueur scanne avec son 
 | 👀 | Qui de nous ? | ✅ 80 questions, votes anonymes |
 | ⚡ | Course de réflexes | ✅ feu vert, marathon de taps, bonne couleur, compte vite |
 | 😂 | Réponses drôles | ✅ 70 phrases à compléter, votes |
+| 💶 | Le juste prix | ✅ 60 objets du quotidien, le prix le plus proche gagne |
+| 💬 | Qui a dit ça ? | ✅ réponses secrètes, on devine l'auteur |
+| ➗ | Course de calcul | ✅ 3 niveaux, le plus rapide gagne |
+| 🧩 | Mémoire | ✅ une grille d'emojis à retenir |
+| ✍️ | Petit bac | ✅ une lettre, 5 catégories, « Stop ! » |
+| 🔍 | Zoom mystère | ✅ une image très zoomée qui se dévoile |
+| 🏁 | Le dernier debout | ✅ vrai ou faux, une erreur et on sort |
 
 Musique originale (salon + jeu) sur l'écran TV, générée par `tools/musique.py` : remplaçable par d'autres `.ogg` dans `app/assets/music/`.
 

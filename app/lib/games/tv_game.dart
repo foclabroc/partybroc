@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models.dart';
+import 'calcul_ui.dart';
 import 'dessin_ui.dart';
+import 'justeprix_ui.dart';
+import 'memoire_ui.dart';
+import 'petitbac_ui.dart';
+import 'quiadit_ui.dart';
+import 'survie_ui.dart';
+import 'zoom_ui.dart';
 import 'droles_ui.dart';
 import 'quidenous_ui.dart';
 import 'quiz_state.dart';
@@ -18,6 +25,13 @@ Widget tvGameView(RoomView room) {
     'droles' => DrlTv(room: room, live: live),
     'reflexes' => RfxTv(room: room, live: live),
     'dessin' => DsnTv(room: room, live: live),
+    'justeprix' => JpTv(room: room, live: live),
+    'quiadit' => QadTv(room: room, live: live),
+    'calcul' => CalcTv(room: room, live: live),
+    'memoire' => MemTv(room: room, live: live),
+    'petitbac' => BacTv(room: room, live: live),
+    'zoom' => ZoomTv(room: room, live: live),
+    'survie' => SurvTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }

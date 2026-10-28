@@ -136,28 +136,31 @@ class RfxTv extends StatelessWidget {
     final taps = {for (final e in ((live['taps'] as Map?) ?? const {}).entries) e.key as String: (e.value as num).toInt()};
     final players = room.players.where((p) => p.connected).toList();
     final best = [1, ...taps.values].reduce((a, b) => a > b ? a : b);
+    // jusqu'à 15 lignes : plus serrées au-delà de 8 joueurs
+    final big = players.length <= 8;
+    final av = big ? 74.0 : (players.length > 12 ? 44.0 : 54.0);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       for (final p in players)
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: big ? 8 : 3),
           child: Row(children: [
-            SizedBox(width: 300, child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(40, weight: 600))),
+            SizedBox(width: 300, child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(big ? 40 : 30, weight: 600))),
             Expanded(
               child: LayoutBuilder(
                 builder: (_, c) {
                   final f = (taps[p.pid] ?? 0) / best;
                   return Stack(children: [
-                    Container(height: 74, decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(40))),
+                    Container(height: av, decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(40))),
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 260),
-                      left: (c.maxWidth - 74) * f,
-                      child: PbAvatar(size: 74, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                      left: (c.maxWidth - av) * f,
+                      child: PbAvatar(size: av, emoji: p.emoji, color: p.color, photoPath: p.photo),
                     ),
                   ]);
                 },
               ),
             ),
-            SizedBox(width: 140, child: Text('${taps[p.pid] ?? 0}', textAlign: TextAlign.right, style: Pb.t(48, weight: 700))),
+            SizedBox(width: 140, child: Text('${taps[p.pid] ?? 0}', textAlign: TextAlign.right, style: Pb.t(big ? 48 : 34, weight: 700))),
           ]),
         ),
     ]);

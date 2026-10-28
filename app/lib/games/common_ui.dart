@@ -38,6 +38,9 @@ extension You on Map<String, dynamic>? {
 
 // =================================================================== TV
 
+/// Taille des avatars d'une rangée de joueurs sur la TV (jusqu'à 15 joueurs)
+double rowAvatar(int n) => n > 12 ? 58 : (n > 9 ? 66 : 76);
+
 /// Écran d'introduction d'un jeu sur la TV
 class TvIntro extends StatelessWidget {
   const TvIntro({super.key, required this.emoji, required this.title, required this.sub, required this.rules, required this.live});
@@ -98,14 +101,15 @@ class TvWhoDone extends StatelessWidget {
   Widget build(BuildContext context) {
     final players = room.players.where((p) => p.connected && p.pid != exclude).toList();
     final n = players.where((p) => done.contains(p.pid)).length;
+    final size = rowAvatar(players.length);
     return Row(children: [
       Text('$n/${players.length} $label', style: Pb.t(34, weight: 600, color: Pb.muted)),
       const SizedBox(width: 26),
       for (final p in players)
         Padding(
-          padding: const EdgeInsets.only(right: 12),
+          padding: EdgeInsets.only(right: size < 70 ? 8 : 12),
           child: Stack(clipBehavior: Clip.none, children: [
-            PbAvatar(size: 76, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !done.contains(p.pid)),
+            PbAvatar(size: size, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !done.contains(p.pid)),
             if (done.contains(p.pid)) const Positioned(right: -6, bottom: -6, child: Text('✔️', style: TextStyle(fontSize: 30))),
           ]),
         ),

@@ -4,7 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/calcul_ui.dart';
 import '../games/dessin_ui.dart';
+import '../games/justeprix_ui.dart';
+import '../games/memoire_ui.dart';
+import '../games/petitbac_ui.dart';
+import '../games/quiadit_ui.dart';
+import '../games/survie_ui.dart';
+import '../games/zoom_ui.dart';
 import '../games/draw_board.dart';
 import '../games/droles_ui.dart';
 import '../games/quidenous_ui.dart';
@@ -369,6 +376,20 @@ class _PlayScreenState extends State<PlayScreen> {
         return RfxPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'dessin':
         return DsnPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'justeprix':
+        return JpPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'quiadit':
+        return QadPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'calcul':
+        return CalcPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'memoire':
+        return MemPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'petitbac':
+        return BacPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'zoom':
+        return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'survie':
+        return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
     }
     return const SizedBox.shrink();
   }

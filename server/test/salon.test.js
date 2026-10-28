@@ -150,16 +150,20 @@ try {
   assert.notEqual((await tv3.wait('tv_ok')).code, tvOk.code);
   step("Faux jeton TV : pas d'accès au salon, nouveau salon créé");
 
-  // Salon complet
+  // Salon complet : on remplit jusqu'au refus, qui doit arriver à 15 joueurs
   const many = [];
-  for (let i = 0; i < 9; i++) {
+  let refusedAt = null;
+  for (let i = 0; i < 20 && refusedAt === null; i++) {
     const k = client(); await k.open();
     k.send({ t: 'join', code: tvOk.code, name: 'J' + i });
     many.push(k);
-    if (i < 8) await k.wait('joined');
+    const m = await k.wait((x) => x.t === 'joined' || x.t === 'error');
+    if (m.t === 'error') { assert.equal(m.code, 'refused'); refusedAt = m; }
   }
-  assert.equal((await many[8].wait('error')).code, 'refused');
-  step('11e joueur refusé (10 max)');
+  const full = await tv2.last('room');
+  assert.ok(refusedAt, 'un joueur doit être refusé');
+  assert.equal(full.room.players.length, 15);
+  step('16e joueur refusé (15 max)');
 
   const h = await (await fetch(`http://127.0.0.1:${PORT}/health`)).json();
   console.log('  /health', h);

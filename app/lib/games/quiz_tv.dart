@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../theme.dart';
+import 'common_ui.dart' show rowAvatar;
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
 import 'quiz_state.dart';
@@ -179,9 +180,9 @@ class _Question extends StatelessWidget {
       const SizedBox(width: 30),
       for (final p in players)
         Padding(
-          padding: const EdgeInsets.only(right: 14),
+          padding: EdgeInsets.only(right: players.length > 9 ? 8 : 14),
           child: Stack(clipBehavior: Clip.none, children: [
-            PbAvatar(size: 80, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !q.answered.contains(p.pid)),
+            PbAvatar(size: players.length > 9 ? rowAvatar(players.length) : 80, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !q.answered.contains(p.pid)),
             if (q.answered.contains(p.pid))
               const Positioned(right: -6, bottom: -6, child: Text('✔️', style: TextStyle(fontSize: 34))),
           ]),
