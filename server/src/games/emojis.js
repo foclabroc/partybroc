@@ -1,3 +1,5 @@
+import { imgId, slug } from '../images.js';
+
 // Emojis avec leur nom en français, par famille (Zoom mystère, Mémoire).
 // Les « choix » d'une question viennent de la même famille : plus difficile.
 export const EMOJI_FAMILIES = {
@@ -36,3 +38,14 @@ export const EMOJI_FAMILIES = {
 };
 
 export const ALL_EMOJIS = Object.entries(EMOJI_FAMILIES).flatMap(([family, list]) => list.map(([e, name]) => ({ e, name, family })));
+
+const BY_EMOJI = new Map(ALL_EMOJIS.map((x) => [x.e, x]));
+
+/** Photo réelle d'un emoji (server/images/<famille>/<nom>.jpg), ou null : l'appli garde l'emoji */
+export const photoOf = (e) => {
+  const x = BY_EMOJI.get(e);
+  return x ? imgId(`${x.family}/${slug(x.name)}`) : null;
+};
+
+/** Nom d'un emoji (« Chien »), ou null */
+export const nameOfEmoji = (e) => BY_EMOJI.get(e)?.name ?? null;

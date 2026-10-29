@@ -4,7 +4,7 @@
 import crypto from 'node:crypto';
 import { fastTimings, shuffle } from './common.js';
 import { RoundGame } from './round.js';
-import { ALL_EMOJIS } from './emojis.js';
+import { ALL_EMOJIS, photoOf, nameOfEmoji } from './emojis.js';
 
 export const MEM = fastTimings({
   rounds: [5, 8, 12],
@@ -25,6 +25,9 @@ const CORNERS = [['en haut à gauche', 0], ['en haut à droite', 3], ['en bas à
 const rnd = (n) => crypto.randomInt(n);
 // Nom d'un emoji, pour l'animateur vocal (« Combien y avait-il de Chat ? »)
 const nameOf = (e) => ALL_EMOJIS.find((x) => x.e === e)?.name.toLowerCase() ?? 'cet objet';
+
+// Dans le texte d'une question : le nom si la grille montre des photos (« Chien »), sinon l'emoji
+const label = (e) => (photoOf(e) ? `« ${nameOfEmoji(e)} »` : e);
 
 // Une grille : 12 cases, 5 ou 6 emojis différents, certains en plusieurs exemplaires
 export function makeScene() {
@@ -48,7 +51,7 @@ export function makeQuestion(cells) {
     const set = new Set([n]);
     for (const d of shuffle([-1, 1, 2, -2, 3])) if (set.size < 4 && n + d >= 0) set.add(n + d);
     const choices = shuffle([...set].map(String));
-    return { text: `Combien y avait-il de ${e} ?`, say: `Combien y avait-il de : ${nameOf(e)} ?`, kind: 'number', choices, correct: choices.indexOf(String(n)) };
+    return { text: `Combien y avait-il de ${label(e)} ?`, say: `Combien y avait-il de : ${nameOf(e)} ?`, kind: 'number', choices, correct: choices.indexOf(String(n)) };
   }
   if (type === 'corner') {
     const [label, idx] = CORNERS[rnd(4)];
@@ -62,7 +65,7 @@ export function makeQuestion(cells) {
     const e = singles[rnd(singles.length)];
     const c = cells.find((x) => x.e === e).c;
     const choices = shuffle([c, ...shuffle(COLORS.filter((x) => x !== c)).slice(0, 3)]);
-    return { text: `De quelle couleur était la case de ${e} ?`, say: `De quelle couleur était la case : ${nameOf(e)} ?`, kind: 'color', choices, correct: choices.indexOf(c) };
+    return { text: `De quelle couleur était la case ${label(e)} ?`, say: `De quelle couleur était la case : ${nameOf(e)} ?`, kind: 'color', choices, correct: choices.indexOf(c) };
   }
   // absent : 3 emojis de la grille + 1 qui n'y était pas
   const absent = shuffle([...ALL_EMOJIS]).map((x) => x.e).find((x) => !kinds.includes(x));
@@ -100,8 +103,12 @@ export class MemoireGame extends RoundGame {
   publicRound(reveal) {
     const { cells, q } = this.round;
     const s = { cols: MEM.cols };
-    if (this.phase === 'show' || reveal) s.cells = cells;
-    if (this.phase !== 'show') { s.question = q.text; s.say = q.say || q.text; s.kind = q.kind; s.choices = q.choices; }
+    // i : photo réelle de chaque case / de chaque choix (sinon l'appli affiche l'emoji)
+    if (this.phase === 'show' || reveal) s.cells = cells.map((x) => ({ ...x, i: photoOf(x.e) }));
+    if (this.phase !== 'show') {
+      Object.assign(s, { question: q.text, say: q.say || q.text, kind: q.kind, choices: q.choices });
+      if (q.kind === 'emoji') s.imgs = q.choices.map((e) => photoOf(e));
+    }
     if (reveal) {
       s.correct = q.correct;
       s.picks = Object.fromEntries([...this.answers].map(([pid, a]) => [pid, a.v]));

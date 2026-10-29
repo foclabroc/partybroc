@@ -13,6 +13,7 @@ extension Live on Map<String, dynamic> {
   int i(String k, [int d = 0]) => (this[k] as num?)?.toInt() ?? d;
   String? s(String k) => this[k] as String?;
   List<String> pids(String k) => [for (final x in (this[k] as List?) ?? const []) x as String];
+  List<String?>? optStrs(String k) => this[k] is List ? [for (final x in this[k] as List) x as String?] : null;
   List<Map<String, dynamic>> maps(String k) => [for (final x in (this[k] as List?) ?? const []) x as Map<String, dynamic>];
   int get endsIn => i('endsIn');
   int get duration => i('duration', 1);

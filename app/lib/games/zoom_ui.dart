@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../models.dart';
+import '../net.dart';
 import '../theme.dart';
 import '../widgets/countdown.dart';
 import 'common_ui.dart';
@@ -13,8 +14,9 @@ import 'kit_ui.dart';
 /// L'emoji géant qui se dézoome au fil du temps (calé sur le chrono du serveur).
 /// À la révélation : affiché en entier.
 class ZoomPicture extends StatefulWidget {
-  const ZoomPicture({super.key, required this.e, required this.fx, required this.fy, required this.endsIn, required this.duration, required this.full, this.size = 620});
+  const ZoomPicture({super.key, required this.e, this.img, required this.fx, required this.fy, required this.endsIn, required this.duration, required this.full, this.size = 620});
   final String e;
+  final String? img; // photo réelle (/img/<id>) ; sinon on dessine l'emoji
   final double fx, fy;
   final int endsIn, duration;
   final bool full;
@@ -35,6 +37,12 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
   ui.Image? _img;
   DateTime? _fullAt;
   Offset? _focus; // point zoomé, posé sur un morceau de l'emoji (pas sur du blanc)
+  bool _photo = false; // une photo est affichée (zoom de départ moins fort : 600 px seulement)
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  // Zoom de départ : ×16 sur l'emoji (dessiné en 1024 px, net), ×6 sur une photo
+  double get _maxZoom => _photo ? 6.0 : 16.0;
 
   // Le point demandé par le serveur tombe parfois dans le vide (le creux d'un croissant
   // de lune…) : on prend le point de l'emoji le plus proche (même calcul partout)
@@ -68,7 +76,7 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
     _end = DateTime.now().add(Duration(milliseconds: widget.endsIn));
     _ticker = createTicker((_) => _tick())..start();
     _tick();
-    _raster();
+    _load();
     // Sur le web, la police des emojis arrive parfois après le premier dessin (carré vide) :
     // on redessine l'image dès qu'elle est chargée, et encore un peu plus tard par sécurité
     PaintingBinding.instance.systemFonts.addListener(_raster);
@@ -79,7 +87,39 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
     }
   }
 
+  // Photo réelle si le serveur en a une, sinon l'emoji ; photo qui ne charge pas → emoji
+  void _load() {
+    final id = widget.img;
+    _stopStream();
+    if (id == null || id.isEmpty) {
+      _raster();
+      return;
+    }
+    final stream = NetworkImage(photoUrl('/img/$id')).resolve(ImageConfiguration.empty);
+    _listener = ImageStreamListener((info, _) {
+      if (!mounted || widget.img != id) return;
+      setState(() {
+        _img?.dispose();
+        _img = info.image.clone();
+        _focus = Offset(widget.fx, widget.fy); // une photo n'a pas de trou transparent
+        _photo = true;
+      });
+      _stopStream();
+    }, onError: (_, _) {
+      _stopStream();
+      if (mounted) _raster();
+    });
+    _stream = stream..addListener(_listener!);
+  }
+
+  void _stopStream() {
+    if (_stream != null && _listener != null) _stream!.removeListener(_listener!);
+    _stream = null;
+    _listener = null;
+  }
+
   Future<void> _raster() async {
+    if (_photo) return; // la photo est là : pas d'emoji par-dessus
     final e = widget.e;
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
@@ -90,7 +130,7 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
     tp.paint(c, Offset((_n - tp.width) / 2, (_n - tp.height) / 2));
     final img = await rec.endRecording().toImage(_n, _n);
     final focus = await _focusOn(img, widget.fx, widget.fy);
-    if (!mounted || e != widget.e) {
+    if (!mounted || e != widget.e || _photo) {
       img.dispose();
       return;
     }
@@ -113,7 +153,7 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
     final left = _end.difference(DateTime.now()).inMilliseconds.clamp(0, w.duration);
     // 0 au début → 1 à la fin ; le zoom part de ×16 et descend vers ×1,4 (jamais en entier avant la fin)
     final t = w.duration == 0 ? 1.0 : 1 - left / w.duration;
-    _scale.value = 1.4 + 14.6 * pow(1 - t, 2.2);
+    _scale.value = 1.4 + (_maxZoom - 1.4) * pow(1 - t, 2.2);
     _fullFrom = _scale.value;
   }
 
@@ -122,7 +162,10 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
     super.didUpdateWidget(old);
     final fresh = DateTime.now().add(Duration(milliseconds: widget.endsIn));
     if (fresh.difference(_end).inMilliseconds.abs() > 400) _end = fresh;
-    if (widget.e != old.e) _raster();
+    if (widget.e != old.e || widget.img != old.img) {
+      _photo = false;
+      _load();
+    }
     if (widget.full && !old.full) {
       _fullAt = null;
       if (!_ticker.isActive) _ticker.start();
@@ -133,6 +176,7 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
   @override
   void dispose() {
     PaintingBinding.instance.systemFonts.removeListener(_raster);
+    _stopStream();
     _ticker.dispose();
     _scale.dispose();
     _img?.dispose();
@@ -220,6 +264,7 @@ class ZoomTv extends StatelessWidget {
             ZoomPicture(
               key: ValueKey('z${live.i('index')}'),
               e: live.s('e') ?? '❓',
+              img: live.s('img'),
               fx: (live['fx'] as num?)?.toDouble() ?? .5,
               fy: (live['fy'] as num?)?.toDouble() ?? .5,
               endsIn: live.endsIn,

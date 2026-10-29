@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models.dart';
+import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
 import 'common_ui.dart';
@@ -18,8 +19,41 @@ const memColors = <String, Color>{
   'orange': Color(0xFFFF8A3D),
 };
 
-/// Un choix affiché : texte, emoji en grand, ou pastille de couleur
-Widget choiceLabel(String v, String kind, double size, {Color color = Colors.white}) => switch (kind) {
+/// Photo réelle d’un jeu (servie par `/img/<id>`), ou l’emoji si pas de photo ou si elle ne charge pas
+class PbPhoto extends StatelessWidget {
+  const PbPhoto({super.key, required this.id, required this.emoji, required this.size, this.radius});
+  final String? id;
+  final String emoji;
+  final double size;
+  final double? radius;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget fallback() => SizedBox(
+          width: size,
+          height: size,
+          child: Center(child: Text(emoji, style: TextStyle(fontSize: size * .72, height: 1.1))),
+        );
+    final id = this.id;
+    if (id == null || id.isEmpty) return fallback();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius ?? size * .12),
+      child: Image.network(
+        photoUrl('/img/$id'),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => fallback(),
+      ),
+    );
+  }
+}
+
+/// Un choix affiché : texte, emoji en grand (ou sa photo [img]), ou pastille de couleur
+Widget choiceLabel(String v, String kind, double size, {Color color = Colors.white, String? img}) => switch (kind) {
+      'emoji' when img != null => PbPhoto(id: img, emoji: v, size: size * 2.1),
       'emoji' => Text(v, style: TextStyle(fontSize: size * 1.6, height: 1.1)),
       'color' => Text(v.toUpperCase(),
           style: Pb.t(size, weight: 700, color: color).copyWith(shadows: const [Shadow(color: Colors.black54, blurRadius: 6)])),
@@ -29,9 +63,10 @@ Widget choiceLabel(String v, String kind, double size, {Color color = Colors.whi
 /// 4 choix sur la TV (2×2). À la révélation : la bonne en avant, les autres pâles,
 /// et les avatars de ceux qui ont choisi chaque case.
 class TvChoices extends StatelessWidget {
-  const TvChoices({super.key, required this.room, required this.choices, this.kind = 'text', this.correct, this.picks = const {}, this.height = 150});
+  const TvChoices({super.key, required this.room, required this.choices, this.kind = 'text', this.correct, this.picks = const {}, this.height = 150, this.imgs});
   final RoomView room;
   final List<String> choices;
+  final List<String?>? imgs; // photos des choix « emoji »
   final String kind;
   final int? correct;
   final Map<String, int> picks;
@@ -65,7 +100,7 @@ class TvChoices extends StatelessWidget {
               const SizedBox(width: 22),
               // le texte rétrécit plutôt que de passer à la ligne au milieu d'un mot
               Expanded(
-                child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, 46)),
+                child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, 46, img: imgs != null && i < imgs!.length ? imgs![i] : null)),
               ),
               // qui a choisi : les avatars s'ils sont peu nombreux, sinon leur nombre (le texte garde sa place)
               if (reveal && who.isNotEmpty) ...[
@@ -99,8 +134,9 @@ class TvChoices extends StatelessWidget {
 
 /// 4 gros boutons sur le téléphone. [picked] = le choix déjà envoyé (verrouillé).
 class PhoneChoices extends StatelessWidget {
-  const PhoneChoices({super.key, required this.choices, required this.picked, required this.onPick, this.kind = 'text'});
+  const PhoneChoices({super.key, required this.choices, required this.picked, required this.onPick, this.kind = 'text', this.imgs});
   final List<String> choices;
+  final List<String?>? imgs; // photos des choix « emoji »
   final int? picked;
   final ValueChanged<int> onPick;
   final String kind;
@@ -134,7 +170,7 @@ class PhoneChoices extends StatelessWidget {
                   child: Row(children: [
                     Icon(Pb.answerIcons[i % 4], color: Colors.white, size: 30),
                     const SizedBox(width: 14),
-                    Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, kind == 'emoji' ? 30 : 21))),
+                    Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, kind == 'emoji' ? 30 : 21, img: imgs != null && i < imgs!.length ? imgs![i] : null))),
                     if (picked == i) const Icon(Icons.check_circle_rounded, color: Colors.white, size: 28),
                   ]),
                 ),

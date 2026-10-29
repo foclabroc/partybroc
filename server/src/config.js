@@ -11,6 +11,8 @@ export const config = {
   host: process.env.PB_HOST || '127.0.0.1',
   // Dossier du site Flutter compilé (flutter build web)
   webDir: process.env.PB_WEB_DIR || path.resolve(here, '../../app/build/web'),
+  // Photos réelles des jeux (server/images, dans le dépôt)
+  imgDir: process.env.PB_IMG_DIR || path.resolve(here, '../images'),
   // Connexion PostgreSQL ; vide = le serveur tourne sans enregistrer l'historique
   dbUrl: process.env.PB_DB_URL || '',
 

@@ -31,8 +31,8 @@ class JpTv extends StatelessWidget {
   }
 
   Widget _item({bool small = false}) => Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(live.s('emoji') ?? '🛒', style: TextStyle(fontSize: small ? 130 : 230, height: 1.1)),
-        const SizedBox(height: 10),
+        PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: small ? 220 : 380),
+        const SizedBox(height: 16),
         Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(small ? 54 : 76, weight: 700, height: 1.1)),
         Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(small ? 32 : 42, color: Pb.muted)),
       ]);
@@ -127,7 +127,8 @@ class JpPlay extends StatelessWidget {
       'ask' => ListView(padding: const EdgeInsets.fromLTRB(18, 44, 18, 18), children: [
           TimeBar(endsIn: live.endsIn, duration: live.duration, height: 8),
           const SizedBox(height: 18),
-          Text(live.s('emoji') ?? '🛒', textAlign: TextAlign.center, style: const TextStyle(fontSize: 70)),
+          Center(child: PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: 120)),
+          const SizedBox(height: 8),
           Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(24, weight: 700)),
           Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(16, color: Pb.muted)),
           const SizedBox(height: 22),

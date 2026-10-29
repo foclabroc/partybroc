@@ -3,6 +3,10 @@
 import { db } from '../db.js';
 import { fastTimings, loadContent } from './common.js';
 import { RoundGame } from './round.js';
+import { imgId, slug } from '../images.js';
+
+// Photo du produit : server/images/justeprix/<nom sans l'article>.jpg (« Un jean » → jean.jpg)
+const photoOfItem = (name) => imgId(`justeprix/${slug(String(name).replace(/^(une?|des|le|la|les) /i, ''))}`);
 
 export const JP = fastTimings({
   rounds: [5, 8, 12],
@@ -60,7 +64,7 @@ export class JustePrixGame extends RoundGame {
 
   publicRound(reveal) {
     const { emoji, name, detail } = this.round;
-    const s = { emoji, name, detail };
+    const s = { emoji, img: photoOfItem(name), name, detail };
     if (reveal) {
       s.price = this.round.price;
       s.guesses = this.guessList.map(({ pid, v, rank, exact }) => ({ pid, v, rank, exact: !!exact }));

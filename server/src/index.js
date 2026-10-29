@@ -5,6 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
+import { imgFile, loadImages } from './images.js';
 import { db } from './db.js';
 import {
   RoomManager, send, cleanName, cleanEmoji, decodePhoto, gameById, COLORS,
@@ -82,6 +83,15 @@ function handleHttp(req, res) {
     return;
   }
 
+  // Photos réelles des jeux : /img/<id> (identifiant opaque, voir images.js)
+  const im = url.pathname.match(/^\/img\/([0-9a-f]{16})$/);
+  if (im) {
+    const file = imgFile(im[1]);
+    if (!file) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff' });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
   // Photo roulette : /r/CODE/id (seulement la photo de la manche en cours ou passée)
   const r = url.pathname.match(/^\/r\/([A-Z]{4,12})\/([0-9a-f]{16})$/);
   if (r) {
@@ -547,8 +557,11 @@ const beat = setInterval(() => {
   rooms.sweep();
 }, 20_000);
 
+const nImages = loadImages();
+
 server.listen(config.port, config.host, async () => {
   console.log(`PartyBroc sur http://${config.host}:${config.port}  (site : ${config.webDir})`);
+  console.log(`[images] ${nImages} photos réelles (${config.imgDir})`);
   if (db.enabled()) console.log(`[db] ${(await db.check()) ? 'connectée' : 'INJOIGNABLE (le jeu marche quand même)'}`);
   else console.log('[db] pas de PB_DB_URL : historique désactivé');
 });

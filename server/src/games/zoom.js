@@ -2,7 +2,7 @@
 // Un seul essai parmi 4 noms : plus on trouve tôt, plus on marque.
 import { fastTimings, shuffle } from './common.js';
 import { RoundGame } from './round.js';
-import { EMOJI_FAMILIES, ALL_EMOJIS } from './emojis.js';
+import { EMOJI_FAMILIES, ALL_EMOJIS, photoOf } from './emojis.js';
 
 export const ZOOM = fastTimings({
   rounds: [6, 10, 15],
@@ -59,7 +59,8 @@ export class ZoomGame extends RoundGame {
 
   publicRound(reveal) {
     // L'image elle-même est l'énigme (affichée sur la TV) ; le bon nom n'est envoyé qu'à la fin
-    const s = { e: this.round.e, choices: this.round.choices, fx: this.round.fx, fy: this.round.fy };
+    // img : photo réelle (identifiant opaque), sinon l'appli dessine l'emoji
+    const s = { e: this.round.e, img: photoOf(this.round.e), choices: this.round.choices, fx: this.round.fx, fy: this.round.fy };
     if (reveal) {
       s.correct = this.round.correct;
       s.picks = Object.fromEntries([...this.answers].map(([pid, a]) => [pid, a.v]));

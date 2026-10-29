@@ -25,12 +25,16 @@ class MemGrid extends StatelessWidget {
               height: cell,
               margin: EdgeInsets.all(cell * .05),
               alignment: Alignment.center,
+              // Photo : la couleur de la case forme un cadre épais autour (questions de couleur)
+              padding: cells[r * cols + c]['i'] != null ? EdgeInsets.all(cell * .1) : null,
               decoration: BoxDecoration(
                 color: memColors[cells[r * cols + c]['c']] ?? Pb.card,
                 borderRadius: BorderRadius.circular(cell * .16),
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .25), blurRadius: cell * .08, offset: Offset(0, cell * .03))],
               ),
-              child: Text(cells[r * cols + c]['e'] as String, style: TextStyle(fontSize: cell * .58, height: 1.1)),
+              child: cells[r * cols + c]['i'] != null
+                  ? PbPhoto(id: cells[r * cols + c]['i'] as String, emoji: cells[r * cols + c]['e'] as String, size: cell * .8, radius: cell * .08)
+                  : Text(cells[r * cols + c]['e'] as String, style: TextStyle(fontSize: cell * .58, height: 1.1)),
             ),
         ]),
     ]);
@@ -92,6 +96,7 @@ class MemTv extends StatelessWidget {
                   room: room,
                   choices: live.pids('choices'),
                   kind: live.s('kind') ?? 'text',
+                  imgs: live.optStrs('imgs'),
                   correct: reveal ? live.i('correct') : null,
                   picks: picks,
                   height: reveal ? 130 : 150,
@@ -124,7 +129,7 @@ class MemPlay extends StatelessWidget {
     final ph = live.phase;
     final Widget body = switch (ph) {
       'intro' => const PhoneCenter(emoji: '🧩', title: 'Mémoire', sub: 'Regarde bien la TV : l’image va disparaître !'),
-      'show' => const PhoneCenter(emoji: '👀', title: 'Regarde la TV !', sub: 'Retiens les emojis, leur nombre, leurs couleurs et leur place.'),
+      'show' => const PhoneCenter(emoji: '👀', title: 'Regarde la TV !', sub: 'Retiens les images, leur nombre, leurs couleurs et leur place.'),
       'ask' => _ask(),
       'reveal' => phoneGain(you, good: 'Quelle mémoire !', none: 'Raté !'),
       'podium' => phoneRank(you),
@@ -144,6 +149,7 @@ class MemPlay extends StatelessWidget {
             child: PhoneChoices(
               choices: live.pids('choices'),
               kind: live.s('kind') ?? 'text',
+              imgs: live.optStrs('imgs'),
               picked: you.yi('answer'),
               onPick: (i) => send({'t': 'game_msg', 'm': {'t': 'mem_pick', 'r': live.i('index'), 'choice': i}}),
             ),
