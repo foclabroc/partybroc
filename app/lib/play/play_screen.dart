@@ -779,9 +779,11 @@ class _GamePickerState extends State<_GamePicker> {
   Widget build(BuildContext context) {
     final room = widget.room;
     final cur = room.games.where((g) => g.id == room.selectedGame).firstOrNull ?? room.games.first;
+    final players = room.players.where((p) => p.connected).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       _GameTile(
         g: cur,
+        players: players,
         selected: true,
         trailing: AnimatedRotation(
           turns: _open ? .5 : 0,
@@ -805,6 +807,7 @@ class _GamePickerState extends State<_GamePicker> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _GameTile(
                           g: g,
+                          players: players,
                           selected: false,
                           onTap: () {
                             HapticFeedback.selectionClick();
@@ -822,8 +825,9 @@ class _GamePickerState extends State<_GamePicker> {
 }
 
 class _GameTile extends StatelessWidget {
-  const _GameTile({required this.g, required this.selected, required this.onTap, this.trailing});
+  const _GameTile({required this.g, required this.players, required this.selected, required this.onTap, this.trailing});
   final GameInfo g;
+  final int players; // joueurs connectés : en rouge si pas assez pour ce jeu
   final bool selected;
   final VoidCallback onTap;
   final Widget? trailing;
@@ -847,7 +851,11 @@ class _GameTile extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(g.title, style: Pb.t(18, weight: 600)),
+                Row(children: [
+                  Flexible(child: Text(g.title, style: Pb.t(18, weight: 600))),
+                  const SizedBox(width: 8),
+                  _MinPlayers(min: g.min, enough: players >= g.min),
+                ]),
                 Text(g.pitch, style: Pb.t(14, color: Pb.muted)),
               ]),
             ),
@@ -861,6 +869,23 @@ class _GameTile extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// « 👥 3+ » : nombre de joueurs minimum, en rouge s'il en manque
+class _MinPlayers extends StatelessWidget {
+  const _MinPlayers({required this.min, required this.enough});
+  final int min;
+  final bool enough;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = enough ? Pb.muted : Pb.red;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(color: c.withValues(alpha: .15), borderRadius: BorderRadius.circular(10)),
+      child: Text(min <= 1 ? '👥 dès 1' : '👥 $min+', style: Pb.t(12, weight: 600, color: c)),
     );
   }
 }
