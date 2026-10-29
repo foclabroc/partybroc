@@ -406,7 +406,14 @@ class _Lobby extends StatelessWidget {
                   borderRadius: BorderRadius.circular(40),
                   border: Border.all(color: Pb.cardHi, width: 3),
                 ),
-                child: Column(children: [
+                // Tout le contenu rétrécit s'il manque de place (salon permanent + 2 rangées de jeux),
+                // sinon « + le mot de passe du salon » débordait sur la ligne des jeux
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: 468,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text('Scanne pour jouer', style: Pb.t(38, weight: 600)),
                   const SizedBox(height: 22),
                   Container(
@@ -427,13 +434,15 @@ class _Lobby extends StatelessWidget {
                     TextSpan(text: shortUrl, style: Pb.t(28, weight: 600, color: Pb.cyan)),
                   ])),
                   Text(room.perm ? 'salon permanent 🔒' : 'avec le code', style: Pb.t(26, color: Pb.muted)),
-                  const Spacer(),
+                  const SizedBox(height: 18),
                   _CodeLetters(code: room.code),
                   if (room.perm) ...[
                     const SizedBox(height: 14),
                     Text('+ le mot de passe du salon', style: Pb.t(24, color: Pb.muted)),
                   ],
                 ]),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 70),
