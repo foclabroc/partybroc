@@ -70,7 +70,7 @@ cd D:\partybroc
 .\deploy.ps1
 ```
 
-Le même script sert pour **chaque mise à jour**. À la fin, `/health` doit répondre `ok: True, db: True`.
+Le même script sert pour **chaque mise à jour**. Plus simple : double-clique sur **`Mettre a jour.cmd`** dans `D:\partybroc` (il demande les droits administrateur, lance `deploy.ps1` et laisse la fenêtre ouverte à la fin pour lire le résultat). À la fin, `/health` doit répondre `ok: True, db: True`.
 
 ## 5. Caddy
 
