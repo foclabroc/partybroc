@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import 'calcul_ui.dart';
+import 'course_ui.dart';
 import 'dessin_ui.dart';
 import 'justeprix_ui.dart';
 import 'memoire_ui.dart';
@@ -34,6 +35,7 @@ Widget tvGameView(RoomView room) {
     'petitbac' => BacTv(room: room, live: live),
     'zoom' => ZoomTv(room: room, live: live),
     'survie' => SurvTv(room: room, live: live),
+    'course' => CrsTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }

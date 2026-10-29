@@ -14,6 +14,7 @@ import { PetitBacGame, PBAC } from './petitbac.js';
 import { ZoomGame, ZOOM } from './zoom.js';
 import { SurvieGame, SURV } from './survie.js';
 import { PhotoRouletteGame, PHR } from './photoroulette.js';
+import { CourseGame, CRS } from './course.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, ready: true, impl: DessinGame,
@@ -58,6 +59,9 @@ export const GAMES = [
   { id: 'photoroulette', title: 'Photo roulette', emoji: '📸', min: 3, ready: true, impl: PhotoRouletteGame,
     pitch: 'Chacun choisit des photos de son tel : à qui est celle-ci ?',
     options: { per: { label: 'Photos chacun', values: PHR.perPlayer, def: PHR.defaultPerPlayer } } },
+  { id: 'course',    title: 'Course au tap',    emoji: '🏃', min: 1, ready: true, impl: CourseGame,
+    pitch: 'Gauche, droite, gauche, droite… saute les haies et fonce !',
+    options: { races: { label: 'Courses', values: CRS.races, def: CRS.defaultRaces } } },
 ];
 
 export const gameById = (id) => GAMES.find((g) => g.id === id) || null;

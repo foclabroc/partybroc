@@ -22,7 +22,7 @@ class QadTv extends StatelessWidget {
           emoji: '💬',
           title: 'Qui a dit ça ?',
           sub: 'Réponses secrètes',
-          rules: const ['Réponds en secret à 2 questions sur ton téléphone.', 'Puis devine qui a écrit chaque réponse. L’auteur, lui, garde un air innocent !'],
+          rules: const ['Réponds en secret à 2 questions sur ton téléphone.', 'Puis devine qui a écrit chaque réponse : +200 si tu trouves.', 'L’auteur gagne 100 par joueur qu’il a trompé : brouille les pistes !'],
           live: live),
       'write' => _write(),
       'ask' || 'reveal' => _round(),

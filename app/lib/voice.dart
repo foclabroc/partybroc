@@ -203,6 +203,20 @@ class VoiceDirector {
           final target = (live['target'] as num?)?.toInt();
           return s('type') == 'chrono' && target != null ? '$t Arrêtez-le à ${target ~/ 1000} secondes.' : t;
         }
+      case 'course':
+        if (phase == 'ready') {
+          const names = {
+            'sprint': 'Sprint ! Gauche, droite, gauche, droite !',
+            'haies': 'Course de haies ! Sautez au bon moment.',
+            'turbo': 'Haies et turbo ! Attrapez les éclairs.',
+          };
+          return names[s('kind')];
+        }
+        if (phase == 'result') {
+          final o = (live['order'] as List? ?? const []).cast<Map>();
+          final w = o.where((x) => x['place'] == 1 && x['ms'] != null).map((x) => name(x['pid'])).toList();
+          return w.isEmpty ? 'Personne n’est arrivé !' : '${w.join(' et ')} gagne la course !';
+        }
       case 'petitbac':
         if (phase == 'write') return 'Lettre ${s('letter')} ! ${list('categories').join(', ')}.';
         if (phase == 'check') return 'On vérifie les réponses !';

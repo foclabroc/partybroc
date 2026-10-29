@@ -15,7 +15,7 @@ export const QAD = fastTimings({
   revealMs: 7000,
   podiumMs: 25000,
   findPoints: 200,     // bonne personne trouvée
-  fooledPoints: 50,    // pour l'auteur, par joueur qui s'est trompé
+  fooledPoints: 100,   // pour l’auteur, par joueur qui s’est trompé (pousse à brouiller les pistes)
   maxLen: 60,
 });
 

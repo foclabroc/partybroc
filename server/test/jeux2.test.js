@@ -221,10 +221,10 @@ try {
       const gain = (p) => rev.ranking.find((x) => x.pid === p.me).gain;
       assert.equal(gain(others[0]), 200);
       assert.equal(gain(others[1]), 0);
-      assert.equal(gain(author), 50);
+      assert.equal(gain(author), 100);
       void a; void b; void c;
       close(s);
-      step('Qui a dit ça ? : 2 questions chacun, réponses nettoyées, auteur caché et sans vote, +200 trouvé, +50 par joueur trompé');
+      step('Qui a dit ça ? : 2 questions chacun, réponses nettoyées, auteur caché et sans vote, +200 trouvé, +100 par joueur trompé');
     }
 
     // ---- Le dernier debout ----

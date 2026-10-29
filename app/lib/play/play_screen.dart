@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
+import '../games/course_ui.dart';
 import '../games/dessin_ui.dart';
 import '../games/justeprix_ui.dart';
 import '../games/memoire_ui.dart';
@@ -453,6 +454,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'course':
+        return CrsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
     }
     return const SizedBox.shrink();
   }

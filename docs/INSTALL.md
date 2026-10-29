@@ -35,6 +35,7 @@ psql -h localhost -U partybroc -d party -f 07_justeprix.sql
 psql -h localhost -U partybroc -d party -f 08_quiadit.sql
 psql -h localhost -U partybroc -d party -f 09_vraifaux.sql
 psql -h localhost -U partybroc -d party -f 10_stats.sql
+psql -h localhost -U partybroc -d party -f 11_quiadit_plus.sql
 Remove-Item Env:PGPASSWORD
 ```
 
