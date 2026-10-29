@@ -4,6 +4,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'music.dart';
+
 /// Bruitages de l'écran TV (assets/sfx/*.ogg, fabriqués par tools/bruitages.py,
 /// remplaçables par d'autres .ogg du même nom). Indépendants de la musique,
 /// avec leur propre bouton « Bruitages ».
@@ -28,6 +30,7 @@ class Sfx {
       muted = p.getBool('pb_sfx_muted') ?? false;
       for (var i = 0; i < 4; i++) {
         final a = AudioPlayer();
+        await pbMixAudio(a); // ne coupe pas la musique (focus audio Android)
         await a.setReleaseMode(ReleaseMode.stop);
         // Android : lecteur « basse latence » pour les sons courts
         if (!kIsWeb) await a.setPlayerMode(PlayerMode.lowLatency);

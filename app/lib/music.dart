@@ -1,12 +1,27 @@
 import 'dart:math';
 
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Musique de fond de l'écran TV : « salon » au salon et au podium, « jeu » pendant les parties.
 /// Salon : les morceaux salon1…salon5.ogg en lecture aléatoire (le suivant démarre tout seul,
 /// jamais deux fois le même d'affilée). Jeu : jeu.ogg en boucle. Fichiers dans assets/music/
 /// (musiques Mixkit, licence gratuite sans mention obligatoire).
+/// Android : aucun de nos lecteurs ne prend le « focus audio ». Par défaut, chaque
+/// lecteur le prend en démarrant, et Android met alors en pause celui qui jouait :
+/// le bruitage d'arrivée d'un joueur coupait la musique du salon pour de bon.
+final AudioContext pbAudioContext = AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers).build();
+
+Future<void> pbMixAudio(AudioPlayer p) async {
+  if (kIsWeb) return;
+  try {
+    await p.setAudioContext(pbAudioContext);
+  } catch (_) {}
+}
+
 class Music {
   Music._();
   static final instance = Music._();
@@ -23,6 +38,8 @@ class Music {
   String? _last; // dernier morceau joué (pour ne pas le rejouer tout de suite)
   bool muted = false;
   bool _ready = false;
+  bool _held = false; // pause voulue (appli en arrière-plan)
+  bool _switching = false; // changement de morceau en cours
   static const volume = 0.45;
 
   Future<void> init() async {
@@ -31,7 +48,16 @@ class Music {
     try {
       final p = await SharedPreferences.getInstance();
       muted = p.getBool('pb_muted') ?? false;
+      await pbMixAudio(_player);
       await _player.setVolume(volume);
+      // Filet de sécurité : si autre chose met la musique en pause (Android), on la relance
+      _player.onPlayerStateChanged.listen((s) {
+        if (s == PlayerState.paused && !_held && !_switching && !muted && _playing != null && _playing == _want) {
+          Timer(const Duration(milliseconds: 400), () {
+            if (_player.state == PlayerState.paused && !_held && !muted && _playing == _want) _player.resume();
+          });
+        }
+      });
       // Fin d'un morceau du salon : le suivant, au hasard
       _player.onPlayerComplete.listen((_) {
         if (!muted && _playing != null && _playing == _want && playlists[_playing]!.length > 1) _start();
@@ -52,6 +78,7 @@ class Music {
     final list = playlists[t] ?? [t];
     final choices = list.length > 1 ? list.where((x) => x != _last).toList() : list;
     final track = choices[_rnd.nextInt(choices.length)];
+    _switching = true;
     try {
       await _player.stop();
       // Une seule piste (jeu) : en boucle ; une liste (salon) : on enchaîne à la fin
@@ -62,6 +89,8 @@ class Music {
     } catch (_) {
       // Navigateur : la lecture automatique est bloquée tant qu'on n'a pas touché l'écran.
       _playing = null;
+    } finally {
+      _switching = false;
     }
   }
 
@@ -79,12 +108,14 @@ class Music {
 
   /// Appli en arrière-plan : on coupe le son ; au retour on le remet
   Future<void> pause() async {
+    _held = true;
     try {
       await _player.pause();
     } catch (_) {}
   }
 
   Future<void> resume() async {
+    _held = false;
     if (muted || _want == null) return;
     try {
       if (_playing == _want) {
