@@ -691,6 +691,16 @@ class _LobbyView extends StatelessWidget {
             icon: const Text('🎯'),
             label: const Text('Soirée enchaînée'),
           ),
+          const SizedBox(height: 10),
+          // Afficher / cacher le classement sur l'écran TV
+          OutlinedButton.icon(
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              send({'t': 'tv_board', 'on': !room.board});
+            },
+            icon: Text(room.board ? '✖️' : '📺'),
+            label: Text(room.board ? 'Cacher le classement de la TV' : 'Classement sur la TV'),
+          ),
         ] else ...[
           Container(
             padding: const EdgeInsets.all(18),

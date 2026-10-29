@@ -118,6 +118,7 @@ class RoomView {
         live = j['game'] as Map<String, dynamic>?,
         teams = j['teams'] == null ? null : TeamsView.fromJson(j['teams'] as Map<String, dynamic>),
         soiree = j['soiree'] == null ? null : SoireeView.fromJson(j['soiree'] as Map<String, dynamic>),
+        board = j['board'] == true,
         games = [for (final g in j['games'] as List) GameInfo.fromJson(g as Map<String, dynamic>)],
         players = [for (final p in j['players'] as List) PlayerView.fromJson(p as Map<String, dynamic>)];
 
@@ -134,6 +135,7 @@ class RoomView {
   final Map<String, dynamic>? live; // état public de la partie en cours (null au salon)
   final TeamsView? teams; // null = pas d'équipes
   final SoireeView? soiree; // null = pas de soirée enchaînée
+  final bool board; // l'hôte affiche le classement sur la TV
 
   GameInfo? gameById(String id) => games.where((g) => g.id == id).firstOrNull;
 

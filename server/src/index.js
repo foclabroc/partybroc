@@ -397,6 +397,14 @@ const handlers = {
     try { await room.startGame(); } catch (e) { err(ws, e.message, 'start_failed'); }
   },
 
+  // Classement sur l'écran TV (au salon seulement)
+  tv_board(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || room.game) return;
+    room.showBoard(m.on === true);
+    room.broadcast();
+  },
+
   // ---- équipes (hôte, sauf le choix de son équipe) ----
   teams_set(ws, m) {
     const { room, player: p } = ws.ctx;

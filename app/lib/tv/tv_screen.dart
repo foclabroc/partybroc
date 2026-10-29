@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/common_ui.dart';
 import '../games/draw_board.dart';
 import '../games/tv_game.dart';
 import '../live_feed.dart';
@@ -158,6 +159,12 @@ class _TvScreenState extends State<TvScreen> {
         }
         setState(() => _error = null);
       case 'room':
+        // Classement demandé par l'hôte : dans un salon permanent, on charge aussi celui de tous les temps
+        final board = (m['room'] as Map)['board'] == true;
+        if (board && _room?.board != true && (m['room'] as Map)['perm'] == true) {
+          _stats.value = null;
+          _sock.send({'t': 'perm_stats'});
+        }
         setState(() {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _error = null;
@@ -294,6 +301,8 @@ class _TvScreenState extends State<TvScreen> {
                   tvGameView(_room!)
                 else if (_room!.soiree != null && _room!.soiree!.step != 'game')
                   TvSoiree(room: _room!)
+                else if (_room!.board)
+                  TvBoard(room: _room!, stats: _stats)
                 else
                   _Lobby(
                     room: _room!,
@@ -1018,6 +1027,86 @@ class _TvButtonState extends State<TvButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Classement affiché sur la TV à la demande de l'hôte : celui de la soirée (salon
+/// normal), ou celui de tous les temps avec les champions par jeu (salon permanent,
+/// où le score d'un joueur est déjà son total depuis la création du salon).
+class TvBoard extends StatelessWidget {
+  const TvBoard({super.key, required this.room, required this.stats});
+  final RoomView room;
+  final ValueNotifier<Map<String, dynamic>?> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final teams = room.teams;
+    final Widget body;
+    if (room.perm) {
+      body = ValueListenableBuilder(
+        valueListenable: stats,
+        builder: (_, st, _) => st == null
+            ? const Center(child: CircularProgressIndicator(color: Pb.pink))
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.topCenter,
+                child: SizedBox(width: 1700, child: PermStatsView(stats: st, games: room.games, scale: 1.6, wide: true)),
+              ),
+      );
+    } else {
+      final players = [...room.players]..sort((a, b) => b.score - a.score);
+      body = FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: 1200,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (players.isEmpty) Text('Personne pour l’instant', style: Pb.t(36, color: Pb.muted)),
+            for (var i = 0; i < players.length && i < 15; i++) _row(players, i),
+          ]),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(90, 100, 90, 50),
+      child: Column(children: [
+        Text(room.perm ? '🏆 Classement de tous les temps' : '🏆 Classement de la soirée', style: Pb.t(64, weight: 700)),
+        const SizedBox(height: 20),
+        if (teams != null) ...[
+          Wrap(spacing: 18, runSpacing: 12, alignment: WrapAlignment.center, children: [
+            for (var i = 0; i < teams.count; i++)
+              TvChip(
+                text: '${teams.names[i]} · ${Pb.pts(teams.scores[i])}',
+                color: Colors.white,
+                bg: TeamsView.colors[i % TeamsView.colors.length].withValues(alpha: .55),
+                size: 32,
+              ),
+          ]),
+          const SizedBox(height: 24),
+        ],
+        Expanded(child: body),
+      ]),
+    );
+  }
+
+  Widget _row(List<PlayerView> players, int i) {
+    final p = players[i];
+    // ex aequo : même rang
+    var rank = i + 1;
+    while (rank > 1 && players[rank - 2].score == p.score) {
+      rank--;
+    }
+    final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '$rank' };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(children: [
+        SizedBox(width: 80, child: Text(medal, style: Pb.t(44, weight: 700))),
+        PbAvatar(size: 64, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
+        const SizedBox(width: 18),
+        Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(40, weight: 600))),
+        Text('${Pb.pts(p.score)} pts', style: Pb.t(40, weight: 700, color: rank == 1 ? Pb.yellow : Pb.text)),
+      ]),
     );
   }
 }

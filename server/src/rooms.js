@@ -115,6 +115,8 @@ export class Room {
     this.teams = { on: false, count: 2, names: [...TEAM_NAMES] };
     this.lastTeams = null;          // points de chaque équipe à la dernière partie
     this.soiree = null;             // soirée enchaînée en cours
+    this.board = false;             // classement affiché sur la TV (demandé par l'hôte)
+    this.boardTimer = null;
     this.chatLog = [];              // 30 derniers messages (pour qui arrive en cours)
     this.chatSeq = 0;
     this.used = {};                 // contenu déjà servi ce soir, par table (Set d'id)
@@ -137,6 +139,7 @@ export class Room {
       game: this.game ? this.game.publicState() : null,
       teams: this.teams.on ? this.teamsView() : null,
       soiree: this.soireeView(),
+      board: this.board,
       maxPlayers: config.maxPlayers,
       players: [...this.players.values()]
         .sort((a, b) => a.joinedAt - b.joinedAt)
@@ -324,8 +327,16 @@ export class Room {
   }
 
   // ---- parties ----
+  // Classement sur la TV : affiché par l'hôte, caché par lui, au lancement d'un jeu ou au bout d'une minute
+  showBoard(on) {
+    clearTimeout(this.boardTimer);
+    this.board = !!on;
+    if (this.board) this.boardTimer = setTimeout(() => { this.board = false; this.broadcast(); }, 60_000);
+  }
+
   async startGame() {
     const g = gameById(this.selectedGame);
+    this.showBoard(false);
     if (!g || !g.ready) throw new Error(`${g?.title ?? 'Ce jeu'} arrive bientôt !`);
     if (this.game || this.starting) throw new Error('Une partie est déjà en cours');
     if (this.connectedCount() < g.min) throw new Error(`Il faut au moins ${g.min} joueurs`);
@@ -486,6 +497,7 @@ export class RoomManager {
     room.closed = true;
     room.game?.stop();
     clearTimeout(room.soiree?.timer);
+    clearTimeout(room.boardTimer);
     this.rooms.delete(room.code);
     const saves = [];
     for (const p of room.players.values()) {

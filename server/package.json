@@ -7,7 +7,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/salon.test.js && node test/quiz.test.js && node test/jeux.test.js && node test/perm.test.js && node test/chat.test.js && node test/jeux2.test.js && node test/soiree.test.js && node test/course.test.js && node test/images.test.js",
+    "test": "node test/salon.test.js && node test/quiz.test.js && node test/jeux.test.js && node test/perm.test.js && node test/chat.test.js && node test/jeux2.test.js && node test/soiree.test.js && node test/course.test.js && node test/images.test.js && node test/board.test.js",
     "test:quiz": "node test/quiz.test.js",
     "test:jeux": "node test/jeux.test.js"
   },
