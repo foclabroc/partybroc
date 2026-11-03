@@ -375,7 +375,11 @@ class PermStatsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final members = [for (final m in (stats['members'] as List? ?? const [])) m as Map<String, dynamic>];
-    final champs = [for (final c in (stats['champions'] as List? ?? const [])) c as Map<String, dynamic>];
+    // Les jeux retirés de l'appli (ex. Course au tap) n'apparaissent plus
+    final champs = [
+      for (final c in (stats['champions'] as List? ?? const []))
+        if ((c as Map)['game'] == 'soiree' || games.any((g) => g.id == c['game'])) c as Map<String, dynamic>,
+    ];
     String title(String id) => id == 'soiree' ? '🎯 Soirées enchaînées' : (() {
           final g = games.where((x) => x.id == id).firstOrNull;
           return g == null ? id : '${g.emoji} ${g.title}';

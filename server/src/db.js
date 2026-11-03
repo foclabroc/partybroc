@@ -56,7 +56,7 @@ export const db = {
 
   // Contenu d'un jeu tiré au hasard (table pb.<table>, colonne id), sans ce qui a déjà servi ce soir
   async randomContent(table, cols, n, excludeIds) {
-    if (!/^pb_[a-z_]+$/.test(table) || !/^[a-z_, ]+$/.test(cols)) throw new Error('table invalide');
+    if (!/^pb_[a-z_]+$/.test(table) || !/^[a-z0-9_, ]+$/.test(cols)) throw new Error('table invalide');
     const r = await q(`select id, ${cols} from pb.${table}
                        where active and not (id = any($2::int[]))
                        order by random() limit $1`, [n, excludeIds]);

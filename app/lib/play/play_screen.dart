@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
-import '../games/course_ui.dart';
+import '../games/rebus_ui.dart';
 import '../games/dessin_ui.dart';
 import '../games/justeprix_ui.dart';
 import '../games/memoire_ui.dart';
@@ -30,6 +30,7 @@ import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
 import 'home_icon/home_icon.dart';
+import 'invite/invite.dart';
 import 'profile.dart';
 
 enum _Step { loading, form, joining, lobby }
@@ -454,8 +455,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
-      case 'course':
-        return CrsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'rebus':
+        return RbsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
     }
     return const SizedBox.shrink();
   }
@@ -747,6 +748,8 @@ class _LobbyView extends StatelessWidget {
             ]),
           ),
         const SizedBox(height: 18),
+        InviteButton(code: room.code, perm: room.perm),
+        const SizedBox(height: 14),
         PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
 
         const SizedBox(height: 26),
