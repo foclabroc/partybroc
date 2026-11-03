@@ -612,7 +612,7 @@ class _GamesStrip extends StatelessWidget {
   const _GamesStrip({required this.room});
   final RoomView room;
 
-  int get _perRow => room.games.length > 12 ? 7 : 6;
+  int get _perRow => room.games.length > 14 ? 8 : (room.games.length > 12 ? 7 : 6);
 
   @override
   Widget build(BuildContext context) {

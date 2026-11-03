@@ -6,10 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
 import '../games/rebus_ui.dart';
+import '../games/expressions_ui.dart';
 import '../games/dessin_ui.dart';
 import '../games/justeprix_ui.dart';
 import '../games/memoire_ui.dart';
-import '../games/petitbac_ui.dart';
+import '../games/preferences_ui.dart';
 import '../games/quiadit_ui.dart';
 import '../games/photoroulette_ui.dart';
 import '../games/survie_ui.dart';
@@ -449,14 +450,16 @@ class _PlayScreenState extends State<PlayScreen> {
         return CalcPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'memoire':
         return MemPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
-      case 'petitbac':
-        return BacPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'preferences':
+        return PrfPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
       case 'zoom':
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'rebus':
         return RbsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'expressions':
+        return ExpPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
     }
     return const SizedBox.shrink();
   }

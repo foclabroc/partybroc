@@ -203,6 +203,15 @@ class VoiceDirector {
           final target = (live['target'] as num?)?.toInt();
           return s('type') == 'chrono' && target != null ? '$t Arrêtez-le à ${target ~/ 1000} secondes.' : t;
         }
+      case 'expressions':
+        if (phase == 'ask') {
+          final t = s('text');
+          return s('kind') == 'sens' ? 'Que veut dire : $t ?' : t.replaceAll('___', 'quoi');
+        }
+        if (phase == 'reveal') {
+          final full = s('full');
+          return s('kind') == 'sens' ? '$full : ${s('meaning')}' : full;
+        }
       case 'rebus':
         if (phase == 'ask') return 'Emoji rébus : ${s('category')} !';
         if (phase == 'reveal') {
@@ -210,9 +219,16 @@ class VoiceDirector {
           final c = (live['correct'] as num?)?.toInt();
           return c != null && c < a.length ? 'C’était : ${a[c]}' : null;
         }
-      case 'petitbac':
-        if (phase == 'write') return 'Lettre ${s('letter')} ! ${list('categories').join(', ')}.';
-        if (phase == 'check') return 'On vérifie les réponses !';
+      case 'preferences':
+        if (phase == 'fill') return 'Répondez en secret sur votre téléphone !';
+        // Sans l'emoji du début (« 🔵 Bleu » → « Bleu »)
+        final v = s('value').replaceAll(RegExp(r'^[^\p{L}\d]+', unicode: true), '');
+        if (phase == 'ask') return '${s('ask').replaceAll('…', '')} $v ?';
+        if (phase == 'reveal') {
+          final who = [for (final h in list('holders')) name(h)].where((n) => n.isNotEmpty).toList();
+          if (who.isEmpty) return null;
+          return who.length == 1 ? 'C’était ${who.first} !' : 'C’était ${who.sublist(0, who.length - 1).join(', ')} et ${who.last} !';
+        }
     }
     return null;
   }

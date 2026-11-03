@@ -135,38 +135,38 @@ try {
     step('Zoom mystère : nom caché, un seul essai, points si trouvé');
   }
 
-  // ---- Petit bac ----
+  // ---- Qui préfère… ? ----
   {
-    const s = await salon(['Alice', 'Bob']);
-    const [a, b] = s.ps;
-    await launch(s, 'petitbac', { rounds: 3 });
-    const w = (await R(s.tv, (r) => r.game?.phase === 'write')).room.game;
-    const L = w.letter;
-    assert.equal(w.categories.length, 5);
-    assert.equal(w.sheets, undefined);
-    const mk = (k) => w.categories.map((_, c) => `${L}${'abcde'[c]}${k}`);
-    // Bob écrit (sauvegarde), Alice remplit tout et crie « Stop ! »
-    b.send(g({ t: 'bac_write', r: w.index, answers: [mk('x')[0], `${L}aa`, '', 'Zut', mk('x')[4]] }));
-    a.send(g({ t: 'bac_write', r: w.index, answers: mk('y').map((t, c) => (c === 1 ? `${L}AA` : t)), done: true }));
-    const st = (await R(s.tv, (r) => r.game?.stopBy === a.me)).room.game;
-    assert.ok(st.endsIn <= 1100, 'Stop ! raccourcit le temps');
-    const chk = (await R(s.tv, (r) => r.game?.phase === 'check')).room.game;
-    assert.equal(chk.sheets[b.me][3].ok, false, 'Zut ne commence pas par la lettre');
-    // Bob refuse la réponse d'Alice en catégorie 4
-    b.send(g({ t: 'bac_veto', r: chk.index, pid: a.me, c: 4, on: true }));
-    a.send(g({ t: 'bac_ok', r: chk.index }));
-    b.send(g({ t: 'bac_ok', r: chk.index }));
-    const rev = (await R(s.tv, (r) => r.game?.phase === 'reveal')).room.game;
-    const row = (c, p) => rev.table[c].rows.find((x) => x.pid === p.me);
-    assert.equal(row(0, a).pts, 100);            // réponses différentes : 100 chacun
-    assert.equal(row(1, a).pts, 50);             // même mot (accents/majuscules ignorés) : 50
-    assert.equal(row(1, b).pts, 50);
-    assert.equal(row(2, a).pts, 150);            // seul à avoir répondu : 150
-    assert.equal(row(3, b).pts, 0);              // ne commence pas par la lettre
-    assert.equal(row(4, a).refused, true);       // refusée par la majorité des autres
-    assert.equal(row(4, b).pts, 150);
+    const s = await salon(['Alice', 'Bob', 'Carla']);
+    const [a, b, c] = s.ps;
+    await launch(s, 'preferences', { questions: 3, rounds: 6 });
+    s.host.send(g({ t: 'game_skip' })); // intro → réponses secrètes
+    const f = await R(s.tv, (r) => r.game?.phase === 'fill');
+    assert.equal(f.room.game.questions.length, 3);
+    // Chaque téléphone reçoit le formulaire (mêmes questions pour tous)
+    const form = (await a.wait((m) => m.t === 'room' && m.you?.form)).you.form;
+    assert.equal(form.length, 3);
+    const pick = (q, k) => (q.year ? String(1980 + k) : q.options[k % q.options.length]);
+    // Alice et Bob font les mêmes choix, Carla des choix à elle ; un choix hors liste est refusé
+    a.send(g({ t: 'prf_fill', q: 0, v: 'pas dans la liste' }));
+    for (const [p, k] of [[a, 0], [b, 0], [c, 1]]) form.forEach((q, qi) => p.send(g({ t: 'prf_fill', q: qi, v: pick(q, k) })));
+    const ask = (await R(s.tv, (r) => r.game?.phase === 'ask', 5000)).room.game;
+    assert.equal(ask.holders, undefined, 'personne n’est dévoilé avant la révélation');
+    assert.ok(ask.ask && ask.value);
+    // Le choix de la manche : soit Carla seule, soit Alice + Bob
+    const carla = form.some((q) => pick(q, 1) === ask.value);
+    const holders = carla ? [c] : [a, b];
+    const voters = s.ps.filter((p) => !holders.includes(p));
+    for (const v of voters) v.send(g({ t: 'prf_guess', r: ask.index, pid: holders[0].me }));
+    for (const h of holders) h.send(g({ t: 'prf_guess', r: ask.index, pid: voters[0].me })); // ne votent pas
+    const rev = (await R(s.tv, (r) => r.game?.phase === 'reveal', 5000)).room.game;
+    assert.deepEqual([...rev.holders].sort(), holders.map((h) => h.me).sort());
+    const gain = Object.fromEntries(rev.ranking.map((x) => [x.pid, x.gain]));
+    for (const v of voters) assert.ok(gain[v.me] >= 500, 'bonne personne : 500 et plus');
+    for (const h of holders) assert.equal(gain[h.me] || 0, 0, 'personne trompé : 0');
+    assert.ok(rev.count >= 2 && rev.count <= 6);
     close(s);
-    step('Petit bac : réponses cachées pendant l’écriture, « Stop ! », lettre vérifiée, refus à la majorité, 150/100/50');
+    step('Qui préfère… ? : mêmes questions pour tous, choix vérifiés, ceux qui ont fait le choix cachés et sans vote, 500+ pour qui trouve');
   }
 
   if (DB) {

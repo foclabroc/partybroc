@@ -57,6 +57,8 @@ Widget choiceLabel(String v, String kind, double size, {Color color = Colors.whi
       'emoji' => Text(v, style: TextStyle(fontSize: size * 1.6, height: 1.1)),
       'color' => Text(v.toUpperCase(),
           style: Pb.t(size, weight: 700, color: color).copyWith(shadows: const [Shadow(color: Colors.black54, blurRadius: 6)])),
+      // Réponse longue (une phrase) : sur plusieurs lignes au lieu de rétrécir
+      'long' => Text(v, maxLines: 3, overflow: TextOverflow.ellipsis, style: Pb.t(size * .82, weight: 600, color: color, height: 1.15)),
       _ => Text(v, maxLines: 1, style: Pb.t(size, weight: 700, color: color, height: 1.1)),
     };
 
@@ -101,7 +103,9 @@ class TvChoices extends StatelessWidget {
               const SizedBox(width: 22),
               // le texte rétrécit plutôt que de passer à la ligne au milieu d'un mot
               Expanded(
-                child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, 46, img: imgs != null && i < imgs!.length ? imgs![i] : null)),
+                child: kind == 'long'
+                    ? choiceLabel(choices[i], kind, 46)
+                    : FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, 46, img: imgs != null && i < imgs!.length ? imgs![i] : null)),
               ),
               // qui a choisi : les avatars s'ils sont peu nombreux, sinon leur nombre (le texte garde sa place)
               if (reveal && who.isNotEmpty) ...[
@@ -172,7 +176,11 @@ class PhoneChoices extends StatelessWidget {
                   child: Row(children: [
                     Icon(Pb.answerIcons[i % 4], color: Colors.white, size: 30),
                     const SizedBox(width: 14),
-                    Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, kind == 'emoji' ? 30 : 21, img: imgs != null && i < imgs!.length ? imgs![i] : null))),
+                    Expanded(
+                      child: kind == 'long'
+                          ? choiceLabel(choices[i], kind, 21)
+                          : FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: choiceLabel(choices[i], kind, kind == 'emoji' ? 30 : 21, img: imgs != null && i < imgs!.length ? imgs![i] : null)),
+                    ),
                     if (picked == i) const Icon(Icons.check_circle_rounded, color: Colors.white, size: 28),
                   ]),
                 ),

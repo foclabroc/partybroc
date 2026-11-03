@@ -10,11 +10,12 @@ import { JustePrixGame, JP } from './justeprix.js';
 import { QuiAditGame, QAD } from './quiadit.js';
 import { CalculGame, CALC } from './calcul.js';
 import { MemoireGame, MEM } from './memoire.js';
-import { PetitBacGame, PBAC } from './petitbac.js';
+import { PreferencesGame, PRF } from './preferences.js';
 import { ZoomGame, ZOOM } from './zoom.js';
 import { SurvieGame, SURV } from './survie.js';
 import { PhotoRouletteGame, PHR } from './photoroulette.js';
 import { RebusGame, RBS } from './rebus.js';
+import { ExpressionsGame, EXP } from './expressions.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, ready: true, impl: DessinGame,
@@ -47,9 +48,12 @@ export const GAMES = [
   { id: 'memoire',   title: 'Mémoire',          emoji: '🧩', min: 1, ready: true, impl: MemoireGame,
     pitch: 'Regarde bien l’image, elle va disparaître…',
     options: { rounds: { label: 'Images', values: MEM.rounds, def: MEM.defaultRounds } } },
-  { id: 'petitbac',  title: 'Petit bac',        emoji: '✍️', min: 2, ready: true, impl: PetitBacGame,
-    pitch: 'Une lettre, 5 catégories : vite, un mot pour chacune !',
-    options: { rounds: { label: 'Lettres', values: PBAC.rounds, def: PBAC.defaultRounds } } },
+  { id: 'preferences', title: 'Qui préfère… ?', emoji: '💖', min: 3, ready: true, impl: PreferencesGame,
+    pitch: 'Couleur, plat, saison… préférés : devine qui a choisi quoi !',
+    options: {
+      questions: { label: 'Questions chacun', values: PRF.questions, def: PRF.defaultQuestions },
+      rounds: { label: 'Manches', values: PRF.rounds, def: PRF.defaultRounds },
+    } },
   { id: 'zoom',      title: 'Zoom mystère',     emoji: '🔍', min: 1, ready: true, impl: ZoomGame,
     pitch: 'Une image très zoomée : trouve ce que c’est avant les autres.',
     options: { rounds: { label: 'Images', values: ZOOM.rounds, def: ZOOM.defaultRounds } } },
@@ -62,6 +66,9 @@ export const GAMES = [
   { id: 'rebus',     title: 'Emoji rébus',      emoji: '🧐', min: 1, ready: true, impl: RebusGame,
     pitch: 'Des emojis sur la TV : quel film, quelle expression, quel métier ?',
     options: { rounds: { label: 'Rébus', values: RBS.rounds, def: RBS.defaultRounds } } },
+  { id: 'expressions', title: 'Expressions à trous', emoji: '🗣️', min: 1, ready: true, impl: ExpressionsGame,
+    pitch: 'Avoir un poil dans la… ? Trouve le mot qui manque !',
+    options: { rounds: { label: 'Expressions', values: EXP.rounds, def: EXP.defaultRounds } } },
 ];
 
 export const gameById = (id) => GAMES.find((g) => g.id === id) || null;

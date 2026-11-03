@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../models.dart';
 import 'calcul_ui.dart';
 import 'rebus_ui.dart';
+import 'expressions_ui.dart';
 import 'dessin_ui.dart';
 import 'justeprix_ui.dart';
 import 'memoire_ui.dart';
-import 'petitbac_ui.dart';
+import 'preferences_ui.dart';
 import 'quiadit_ui.dart';
 import 'photoroulette_ui.dart';
 import 'survie_ui.dart';
@@ -32,10 +33,11 @@ Widget tvGameView(RoomView room) {
     'photoroulette' => PhrTv(room: room, live: live),
     'calcul' => CalcTv(room: room, live: live),
     'memoire' => MemTv(room: room, live: live),
-    'petitbac' => BacTv(room: room, live: live),
+    'preferences' => PrfTv(room: room, live: live),
     'zoom' => ZoomTv(room: room, live: live),
     'survie' => SurvTv(room: room, live: live),
     'rebus' => RbsTv(room: room, live: live),
+    'expressions' => ExpTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }
