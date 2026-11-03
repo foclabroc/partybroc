@@ -254,34 +254,26 @@ class ZoomTv extends StatelessWidget {
   Widget _round() {
     final reveal = live.phase == 'reveal';
     final picks = {for (final e in ((live['picks'] as Map?) ?? const {}).entries) e.key as String: (e.value as num).toInt()};
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(80, 40, 80, 40),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    // L'image en grand, sur toute la hauteur de l'écran
+    return TvPictureLayout(
+      picture: (size) => ZoomPicture(
+        key: ValueKey('z${live.i('index')}'),
+        e: live.s('e') ?? '❓',
+        img: live.s('img'),
+        fx: (live['fx'] as num?)?.toDouble() ?? .5,
+        fy: (live['fy'] as num?)?.toDouble() ?? .5,
+        endsIn: live.endsIn,
+        duration: live.duration,
+        full: reveal,
+        size: size.width,
+      ),
+      side: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         TvHeader(label: 'Image', index: live.i('index'), count: live.i('count'), live: reveal ? null : live),
-        const SizedBox(height: 20),
-        Expanded(
-          child: Row(children: [
-            ZoomPicture(
-              key: ValueKey('z${live.i('index')}'),
-              e: live.s('e') ?? '❓',
-              img: live.s('img'),
-              fx: (live['fx'] as num?)?.toDouble() ?? .5,
-              fy: (live['fy'] as num?)?.toDouble() ?? .5,
-              endsIn: live.endsIn,
-              duration: live.duration,
-              full: reveal,
-            ),
-            const SizedBox(width: 60),
-            Expanded(
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(reveal ? 'C’était…' : 'Qu’est-ce que c’est ?', style: Pb.t(60, weight: 700)),
-                const SizedBox(height: 36),
-                TvChoices(room: room, choices: live.pids('choices'), correct: reveal ? live.i('correct') : null, picks: picks, height: 120),
-              ]),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 24),
+        const Spacer(),
+        Text(reveal ? 'C’était…' : 'Qu’est-ce que c’est ?', style: Pb.t(54, weight: 700)),
+        const SizedBox(height: 30),
+        TvChoices(room: room, choices: live.pids('choices'), correct: reveal ? live.i('correct') : null, picks: picks, height: 110, cols: 1),
+        const Spacer(),
         SizedBox(
           height: 90,
           child: reveal ? TvGains(room: room, ranking: live.ranking) : TvWhoDone(room: room, done: live.pids('answered').toSet()),

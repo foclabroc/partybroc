@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../theme.dart';
-import 'common_ui.dart' show rowAvatar;
+import 'common_ui.dart' show rowAvatar, tvTwoCols, TvPodium;
 import '../widgets/avatar.dart';
 import '../widgets/countdown.dart';
-import '../widgets/fireworks.dart';
-import 'party_ui.dart';
 import 'quiz_state.dart';
 
 /// Quiz sur la TV (toile 1920×1080).
@@ -21,7 +19,12 @@ class QuizTv extends StatelessWidget {
       'intro' => _Intro(q: q),
       'question' || 'reveal' => _Question(room: room, q: q),
       'scores' => _Scores(room: room, q: q),
-      'podium' => Stack(children: [_Podium(room: room, q: q), const Positioned.fill(child: Fireworks())]),
+      // Podium commun (feu d'artifice et classement complet compris)
+      'podium' => TvPodium(room: room, live: {
+          'endsIn': q.endsIn,
+          'duration': q.duration,
+          'ranking': [for (final r in q.ranking) {'pid': r.pid, 'score': r.score, 'rank': r.rank, 'gain': r.gain}],
+        }),
       _ => const SizedBox.shrink(),
     };
     return AnimatedSwitcher(
@@ -222,17 +225,21 @@ class _Scores extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final list = q.ranking.take(8).toList();
+    final list = q.ranking;
+    // Jusqu'à 8 joueurs : grandes lignes avec barres ; au-delà, deux colonnes plus petites
+    final two = list.length > 8;
+    final k = two ? .72 : 1.0;
     final top = list.isEmpty ? 1 : (list.first.score == 0 ? 1 : list.first.score);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(160, 70, 160, 60),
+      padding: EdgeInsets.fromLTRB(two ? 80 : 160, 70, two ? 80 : 160, 60),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('Classement', style: Pb.t(76, weight: 700)),
           const Spacer(),
           Text('après ${q.index + 1} question${q.index > 0 ? 's' : ''} sur ${q.count}', style: Pb.t(38, color: Pb.muted)),
         ]),
-        const SizedBox(height: 40),
+        SizedBox(height: two ? 30 : 40),
+        tvTwoCols(gap: 70, [
         for (var i = 0; i < list.length; i++)
           if (room.player(list[i].pid) case final p?)
             TweenAnimationBuilder<double>(
@@ -244,12 +251,12 @@ class _Scores extends StatelessWidget {
                 child: Transform.translate(offset: Offset(0, 30 * (1 - v)), child: child),
               ),
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 18),
+                padding: EdgeInsets.only(bottom: 18 * k),
                 child: Row(children: [
-                  SizedBox(width: 80, child: Text('${list[i].rank}', style: Pb.t(54, weight: 700, color: Pb.muted))),
-                  PbAvatar(size: 84, emoji: p.emoji, color: p.color, photoPath: p.photo),
-                  const SizedBox(width: 22),
-                  SizedBox(width: 380, child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(46, weight: 600))),
+                  SizedBox(width: 80 * k, child: Text('${list[i].rank}', style: Pb.t(54 * k, weight: 700, color: Pb.muted))),
+                  PbAvatar(size: 84 * k, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                  SizedBox(width: 22 * k),
+                  SizedBox(width: two ? 220 : 380, child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(46 * k, weight: 600))),
                   Expanded(
                     child: TweenAnimationBuilder<double>(
                       tween: Tween(begin: (list[i].score - list[i].gain) / top, end: list[i].score / top),
@@ -260,123 +267,34 @@ class _Scores extends StatelessWidget {
                         child: FractionallySizedBox(
                           widthFactor: f.clamp(.02, 1.0),
                           child: Container(
-                            height: 44,
+                            height: 44 * k,
                             decoration: BoxDecoration(
                               color: Pb.playerColor(p.color),
-                              borderRadius: BorderRadius.circular(22),
+                              borderRadius: BorderRadius.circular(22 * k),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 24),
+                  SizedBox(width: 24 * k),
                   SizedBox(
-                    width: 220,
-                    child: Text(Pb.pts(list[i].score), textAlign: TextAlign.right, style: Pb.t(48, weight: 700)),
+                    width: 220 * k,
+                    child: Text(Pb.pts(list[i].score), textAlign: TextAlign.right, style: Pb.t(48 * k, weight: 700)),
                   ),
                   SizedBox(
-                    width: 70,
+                    width: 70 * k,
                     child: Text(
                       q.index == 0 ? '' : (list[i].rank < list[i].prevRank ? '▲' : (list[i].rank > list[i].prevRank ? '▼' : '')),
                       textAlign: TextAlign.right,
-                      style: Pb.t(40, color: list[i].rank < list[i].prevRank ? Pb.green : Pb.red),
+                      style: Pb.t(40 * k, color: list[i].rank < list[i].prevRank ? Pb.green : Pb.red),
                     ),
                   ),
                 ]),
               ),
             ),
-      ]),
-    );
-  }
-}
-
-class _Podium extends StatelessWidget {
-  const _Podium({required this.room, required this.q});
-  final RoomView room;
-  final QuizState q;
-
-  @override
-  Widget build(BuildContext context) {
-    QuizRank? at(int i) => i < q.ranking.length ? q.ranking[i] : null;
-    final rest = q.ranking.skip(3).toList();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(80, 50, 80, 40),
-      child: Column(children: [
-        Text('🏆 Podium', style: Pb.t(84, weight: 700)),
-        if (room.teams != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: TvTeamsBar(
-              teams: room.teams!,
-              size: 30,
-              scores: [
-                for (var t = 0; t < room.teams!.count; t++)
-                  q.ranking.where((r) => room.player(r.pid)?.team == t).fold<int>(0, (a, r) => a + r.score),
-              ],
-            ),
-          ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
-            _step(at(1), 2, 220, const Color(0xFFC0C8D8)),
-            const SizedBox(width: 30),
-            _step(at(0), 1, 300, Pb.yellow),
-            const SizedBox(width: 30),
-            _step(at(2), 3, 160, const Color(0xFFE0995E)),
-          ]),
-        ),
-        if (rest.isNotEmpty) ...[
-          const SizedBox(height: 26),
-          Wrap(spacing: 40, runSpacing: 10, alignment: WrapAlignment.center, children: [
-            for (final r in rest)
-              if (room.player(r.pid) case final p?)
-                Text('${r.rank}. ${p.name} · ${Pb.pts(r.score)}', style: Pb.t(34, color: Pb.muted)),
-          ]),
-        ],
-        const SizedBox(height: 20),
-        Countdown(
-          endsIn: q.endsIn,
-          duration: q.duration,
-          builder: (_, _, s) => Text('Retour au salon dans $s s (ou quand ${room.host?.name ?? 'l’hôte'} le décide)',
-              style: Pb.t(30, color: Pb.muted)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _step(QuizRank? r, int place, double h, Color c) {
-    final p = r == null ? null : room.player(r.pid);
-    return SizedBox(
-      width: 380,
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: 1),
-        duration: Duration(milliseconds: 700 + (3 - place) * 400),
-        curve: Curves.easeOutBack,
-        builder: (_, v, child) => Opacity(opacity: v.clamp(0, 1), child: Transform.translate(offset: Offset(0, 120 * (1 - v)), child: child)),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (p != null) ...[
-            if (place == 1) const Text('👑', style: TextStyle(fontSize: 60, height: 1)),
-            PbAvatar(size: place == 1 ? 180 : 150, emoji: p.emoji, color: p.color, photoPath: p.photo),
-            const SizedBox(height: 14),
-            Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(46, weight: 700)),
-            Text('${Pb.pts(r!.score)} pts', style: Pb.t(36, weight: 600, color: c)),
-            const SizedBox(height: 16),
-          ],
-          Container(
-            height: h,
-            width: double.infinity,
-            alignment: Alignment.topCenter,
-            padding: const EdgeInsets.only(top: 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [c, c.withValues(alpha: .35)]),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            // En cas d'égalité, deux joueurs peuvent être 1ers
-            child: Text('${r?.rank ?? place}', style: Pb.t(96, weight: 700, color: Pb.bg)),
-          ),
         ]),
-      ),
+      ]),
     );
   }
 }

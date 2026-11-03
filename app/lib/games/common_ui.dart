@@ -104,8 +104,28 @@ class TvWhoDone extends StatelessWidget {
   Widget build(BuildContext context) {
     final players = room.players.where((p) => p.connected && p.pid != exclude).toList();
     final n = players.where((p) => done.contains(p.pid)).length;
+    // Colonne étroite (à côté d'une grande image) : le texte au-dessus, les avatars en dessous
+    return LayoutBuilder(builder: (_, box) {
+      if (box.maxWidth >= 1000 || players.isEmpty) return _line(players, n);
+      var size = ((box.maxWidth / players.length) - 8).clamp(30.0, 66.0);
+      if (box.maxHeight.isFinite && size > box.maxHeight - 44) size = (box.maxHeight - 44).clamp(24.0, 66.0);
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+        Text('$n/${players.length} $label', style: Pb.t(30, weight: 600, color: Pb.muted)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final p in players)
+            Stack(clipBehavior: Clip.none, children: [
+              PbAvatar(size: size, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !done.contains(p.pid)),
+              if (done.contains(p.pid)) Positioned(right: -4, bottom: -4, child: Text('✔️', style: TextStyle(fontSize: size * .38))),
+            ]),
+        ]),
+      ]);
+    });
+  }
+
+  Widget _line(List<PlayerView> players, int n) {
     final size = rowAvatar(players.length);
-    return Row(children: [
+    return FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: Row(mainAxisSize: MainAxisSize.min, children: [
       Text('$n/${players.length} $label', style: Pb.t(34, weight: 600, color: Pb.muted)),
       const SizedBox(width: 26),
       for (final p in players)
@@ -116,7 +136,7 @@ class TvWhoDone extends StatelessWidget {
             if (done.contains(p.pid)) const Positioned(right: -6, bottom: -6, child: Text('✔️', style: TextStyle(fontSize: 30))),
           ]),
         ),
-    ]);
+    ]));
   }
 }
 
@@ -131,15 +151,23 @@ class TvGains extends StatelessWidget {
   Widget build(BuildContext context) {
     final winners = ranking.where((r) => r.gain > 0).toList()..sort((a, b) => b.gain - a.gain);
     if (winners.isEmpty) return Center(child: Text(empty, style: Pb.t(40, weight: 600, color: Pb.muted)));
-    return Wrap(spacing: 34, runSpacing: 12, children: [
-      for (final r in winners.take(8))
-        if (room.player(r.pid) case final p?)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            PbAvatar(size: 72, emoji: p.emoji, color: p.color, photoPath: p.photo),
-            const SizedBox(width: 10),
-            Text('+${Pb.pts(r.gain)}', style: Pb.t(40, weight: 700, color: Pb.green)),
-          ]),
-    ]);
+    // Tous les gagnants sur une ligne (jusqu'à 15) : elle rétrécit plutôt que de déborder
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (final r in winners)
+          if (room.player(r.pid) case final p?)
+            Padding(
+              padding: const EdgeInsets.only(right: 34),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                PbAvatar(size: 72, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                const SizedBox(width: 10),
+                Text('+${Pb.pts(r.gain)}', style: Pb.t(40, weight: 700, color: Pb.green)),
+              ]),
+            ),
+      ]),
+    );
   }
 }
 
@@ -154,15 +182,17 @@ class TvPodium extends StatelessWidget {
   Widget build(BuildContext context) {
     final ranking = live.ranking;
     GameRank? at(int i) => i < ranking.length ? ranking[i] : null;
-    final rest = ranking.skip(3).toList();
     // Feu d'artifice et confettis par-dessus le podium
     return Stack(children: [
-      _content(ranking, at, rest),
+      _content(ranking, at),
       const Positioned.fill(child: Fireworks()),
     ]);
   }
 
-  Widget _content(List<GameRank> ranking, GameRank? Function(int) at, List<GameRank> rest) {
+  Widget _content(List<GameRank> ranking, GameRank? Function(int) at) {
+    // Au-delà de 3 joueurs : le classement de tout le monde à droite du podium
+    final full = ranking.length > 3;
+    final w = full ? 300.0 : 380.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(80, 50, 80, 40),
       child: Column(children: [
@@ -174,21 +204,22 @@ class TvPodium extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
-            _step(at(1), 2, 220, const Color(0xFFC0C8D8)),
-            const SizedBox(width: 30),
-            _step(at(0), 1, 300, Pb.yellow),
-            const SizedBox(width: 30),
-            _step(at(2), 3, 160, const Color(0xFFE0995E)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
+                _step(at(1), 2, 220, const Color(0xFFC0C8D8), w),
+                const SizedBox(width: 26),
+                _step(at(0), 1, 300, Pb.yellow, w),
+                const SizedBox(width: 26),
+                _step(at(2), 3, 160, const Color(0xFFE0995E), w),
+              ]),
+            ),
+            if (full) ...[
+              const SizedBox(width: 40),
+              SizedBox(width: 620, child: TvRankPanel(room: room, ranking: [for (final r in ranking) (pid: r.pid, rank: r.rank, score: r.score)])),
+            ],
           ]),
         ),
-        if (rest.isNotEmpty) ...[
-          const SizedBox(height: 26),
-          Wrap(spacing: 40, runSpacing: 10, alignment: WrapAlignment.center, children: [
-            for (final r in rest)
-              if (room.player(r.pid) case final p?) Text('${r.rank}. ${p.name} · ${Pb.pts(r.score)}', style: Pb.t(34, color: Pb.muted)),
-          ]),
-        ],
         const SizedBox(height: 20),
         Countdown(
           endsIn: live.endsIn,
@@ -200,10 +231,10 @@ class TvPodium extends StatelessWidget {
     );
   }
 
-  Widget _step(GameRank? r, int place, double h, Color c) {
+  Widget _step(GameRank? r, int place, double h, Color c, double w) {
     final p = r == null ? null : room.player(r.pid);
     return SizedBox(
-      width: 380,
+      width: w,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: 1),
         duration: Duration(milliseconds: 700 + (3 - place) * 400),
@@ -212,7 +243,7 @@ class TvPodium extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (p != null) ...[
             if (place == 1) const Text('👑', style: TextStyle(fontSize: 60, height: 1)),
-            PbAvatar(size: place == 1 ? 180 : 150, emoji: p.emoji, color: p.color, photoPath: p.photo),
+            PbAvatar(size: (place == 1 ? 180 : 150) * (w < 380 ? .85 : 1), emoji: p.emoji, color: p.color, photoPath: p.photo),
             const SizedBox(height: 14),
             Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(46, weight: 700)),
             Text('${Pb.pts(r!.score)} pts', style: Pb.t(36, weight: 600, color: c)),
@@ -233,6 +264,110 @@ class TvPodium extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Mise en page « grande image » sur la TV : l'image prend toute la hauteur de l'écran
+/// à gauche ([square] : carrée, sinon tout l'espace), et tout le reste (en-tête,
+/// question, réponses, joueurs) va dans une colonne à droite.
+class TvPictureLayout extends StatelessWidget {
+  const TvPictureLayout({super.key, required this.picture, required this.side, this.sideWidth = 700, this.square = true});
+  final Widget Function(Size size) picture;
+  final Widget side;
+  final double sideWidth;
+  final bool square;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(60, 40, 70, 40),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(
+          child: LayoutBuilder(builder: (_, box) {
+            final s = box.maxWidth < box.maxHeight ? box.maxWidth : box.maxHeight;
+            return Center(child: picture(square ? Size.square(s) : box.biggest));
+          }),
+        ),
+        const SizedBox(width: 50),
+        SizedBox(width: sideWidth, child: side),
+      ]),
+    );
+  }
+}
+
+/// Classement de tous les joueurs (à côté du podium) : jusqu'à 15 lignes,
+/// qui rétrécissent pour tenir dans la hauteur disponible.
+class TvRankPanel extends StatelessWidget {
+  const TvRankPanel({super.key, required this.room, required this.ranking});
+  final RoomView room;
+  final List<({String pid, int rank, int score})> ranking;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = ranking.length;
+    final s = n > 12 ? 30.0 : (n > 9 ? 34.0 : 38.0); // taille du texte
+    return Container(
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
+      decoration: BoxDecoration(color: Pb.card.withValues(alpha: .75), borderRadius: BorderRadius.circular(32)),
+      child: Column(children: [
+        Text('Classement', style: Pb.t(44, weight: 700)),
+        const SizedBox(height: 10),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 576,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final (i, r) in ranking.indexed)
+                  if (room.player(r.pid) case final p?)
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: 1),
+                      duration: Duration(milliseconds: 400 + i * 90),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, child) => Opacity(opacity: v, child: Transform.translate(offset: Offset(40 * (1 - v), 0), child: child)),
+                      child: Container(
+                        margin: EdgeInsets.only(bottom: s * .2),
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: s * .1),
+                        decoration: BoxDecoration(
+                          color: r.rank <= 3 ? Pb.cardHi : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(children: [
+                          SizedBox(
+                            width: s * 1.7,
+                            child: Text(switch (r.rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '${r.rank}' },
+                                style: Pb.t(s, weight: 700, color: Pb.muted)),
+                          ),
+                          PbAvatar(size: s * 1.45, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                          const SizedBox(width: 14),
+                          if (room.teams != null && p.team != null)
+                            Container(width: 8, height: s, margin: const EdgeInsets.only(right: 10), color: TeamsView.color(p.team!)),
+                          Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(s, weight: 600))),
+                          Text(Pb.pts(r.score), style: Pb.t(s, weight: 700, color: r.rank == 1 ? Pb.yellow : Pb.text)),
+                        ]),
+                      ),
+                    ),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Liste de résultats sur la TV : une colonne jusqu'à [perCol] lignes,
+/// deux colonnes au-delà (jusqu'à 15 joueurs), 1 à 8 à gauche, la suite à droite.
+Widget tvTwoCols(List<Widget> rows, {int perCol = 8, double gap = 60}) {
+  if (rows.length <= perCol) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: rows);
+  }
+  final half = (rows.length / 2).ceil();
+  return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: rows.sublist(0, half))),
+    SizedBox(width: gap),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: rows.sublist(half))),
+  ]);
 }
 
 /// Une étiquette arrondie

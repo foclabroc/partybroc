@@ -235,11 +235,14 @@ class _SoireePickerState extends State<SoireePicker> {
 }
 
 /// Classement de la soirée en liste (TV)
-Widget _soireeList(RoomView room, SoireeView so, {int max = 10, double size = 38}) => Column(mainAxisSize: MainAxisSize.min, children: [
-      for (final r in so.ranking.take(max))
+Widget _soireeList(RoomView room, SoireeView so, {double size = 38}) {
+  // Tout le monde : une colonne jusqu'à 8 joueurs, deux au-delà
+  final w = so.ranking.length > 8 ? 820.0 : 900.0;
+  final rows = [
+      for (final r in so.ranking)
         if (room.player(r.pid) case final p?)
           Container(
-            width: 900,
+            width: w,
             margin: EdgeInsets.only(bottom: size * .22),
             padding: EdgeInsets.symmetric(horizontal: 24, vertical: size * .14),
             decoration: BoxDecoration(
@@ -257,7 +260,15 @@ Widget _soireeList(RoomView room, SoireeView so, {int max = 10, double size = 38
               Text(Pb.pts(r.score), style: Pb.t(size, weight: 700, color: Pb.yellow)),
             ]),
           ),
-    ]);
+  ];
+  if (rows.length <= 8) return Column(mainAxisSize: MainAxisSize.min, children: rows);
+  final half = (rows.length / 2).ceil();
+  return Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Column(mainAxisSize: MainAxisSize.min, children: rows.sublist(0, half)),
+    const SizedBox(width: 40),
+    Column(mainAxisSize: MainAxisSize.min, children: rows.sublist(half)),
+  ]);
+}
 
 /// Entracte et podium final de la soirée, sur la TV
 class TvSoiree extends StatelessWidget {
@@ -292,9 +303,10 @@ class TvSoiree extends StatelessWidget {
         const SizedBox(height: 20),
         if (teams != null && so.teams != null) ...[TvTeamsBar(teams: teams, scores: so.teams, size: 36), const SizedBox(height: 20)],
         Expanded(
-          child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
-            child: Center(child: _soireeList(room, so, max: teams != null ? 7 : 9, size: teams != null ? 32 : 36)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topCenter,
+            child: _soireeList(room, so, size: teams != null ? 32 : 36),
           ),
         ),
         if (next != null)

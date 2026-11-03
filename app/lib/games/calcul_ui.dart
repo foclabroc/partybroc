@@ -52,11 +52,11 @@ class CalcTv extends StatelessWidget {
                   Text('Personne n’a trouvé 😅', style: Pb.t(50, weight: 600, color: Pb.muted))
                 else
                   Wrap(spacing: 36, runSpacing: 16, alignment: WrapAlignment.center, children: [
-                    for (final (i, g) in good.take(8).indexed)
+                    for (final (i, g) in good.indexed)
                       if (room.player(g['pid'] as String) case final p?)
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           if (i == 0) const Text('⚡', style: TextStyle(fontSize: 50)),
-                          PbAvatar(size: i == 0 ? 96 : 72, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                          PbAvatar(size: i == 0 ? 96 : (good.length > 8 ? 60 : 72), emoji: p.emoji, color: p.color, photoPath: p.photo),
                           const SizedBox(width: 12),
                           Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                             Text(p.name, style: Pb.t(i == 0 ? 40 : 32, weight: 700)),

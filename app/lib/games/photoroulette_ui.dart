@@ -89,44 +89,38 @@ class PhrTv extends StatelessWidget {
     final found = [for (final e in picks.entries) if (e.value == live.s('owner')) e.key];
     // Pendant le vote : seulement le nombre de votes (montrer qui a voté trahirait le propriétaire)
     final votes = live.pids('answered').length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(80, 40, 80, 40),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    // La photo en grand sur toute la hauteur, le reste dans une colonne à droite
+    return TvPictureLayout(
+      square: false,
+      sideWidth: 560,
+      picture: (size) => SizedBox.fromSize(size: size, child: PhrPhoto(path: live.s('photo'))),
+      side: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         TvHeader(
           label: 'Photo',
           index: live.i('index'),
           count: live.i('count'),
           live: reveal ? null : live,
-          extra: reveal ? null : TvChip(text: '$votes vote${votes > 1 ? 's' : ''}', size: 34),
         ),
-        const SizedBox(height: 24),
+        if (!reveal) Align(alignment: Alignment.centerLeft, child: TvChip(text: '$votes vote${votes > 1 ? 's' : ''}', size: 30)),
         Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(flex: 6, child: PhrPhoto(path: live.s('photo'))),
-            const SizedBox(width: 50),
-            Expanded(
-              flex: 4,
-              child: Center(
-                child: reveal && owner != null
-                    ? Column(mainAxisSize: MainAxisSize.min, children: [
-                        PbAvatar(size: 220, emoji: owner.emoji, color: owner.color, photoPath: owner.photo),
-                        const SizedBox(height: 20),
-                        Text('C’était à ${owner.name} !', textAlign: TextAlign.center, style: Pb.t(70, weight: 700, color: Pb.yellow, height: 1.1)),
-                        const SizedBox(height: 16),
-                        if (found.isEmpty)
-                          Text('Personne n’a trouvé 😏', style: Pb.t(42, color: Pb.muted))
-                        else ...[
-                          Text('Trouvé par', style: Pb.t(38, color: Pb.muted)),
-                          const SizedBox(height: 8),
-                          TvAvatarRow(room: room, pids: found, size: 70),
-                        ],
-                      ])
-                    : Text('À qui est\ncette photo ? 🤔', textAlign: TextAlign.center, style: Pb.t(76, weight: 700, height: 1.15)),
-              ),
-            ),
-          ]),
+          child: Center(
+            child: reveal && owner != null
+                ? Column(mainAxisSize: MainAxisSize.min, children: [
+                    PbAvatar(size: 200, emoji: owner.emoji, color: owner.color, photoPath: owner.photo),
+                    const SizedBox(height: 20),
+                    Text('C’était à ${owner.name} !', textAlign: TextAlign.center, style: Pb.t(64, weight: 700, color: Pb.yellow, height: 1.1)),
+                    const SizedBox(height: 16),
+                    if (found.isEmpty)
+                      Text('Personne n’a trouvé 😏', style: Pb.t(40, color: Pb.muted))
+                    else ...[
+                      Text('Trouvé par', style: Pb.t(36, color: Pb.muted)),
+                      const SizedBox(height: 8),
+                      TvAvatarRow(room: room, pids: found, size: 64),
+                    ],
+                  ])
+                : Text('À qui est\ncette photo ? 🤔', textAlign: TextAlign.center, style: Pb.t(70, weight: 700, height: 1.15)),
+          ),
         ),
-        const SizedBox(height: 20),
         if (reveal) SizedBox(height: 90, child: TvGains(room: room, ranking: live.ranking)),
         if (!reveal) TimeBar(endsIn: live.endsIn, duration: live.duration, height: 16),
       ]),

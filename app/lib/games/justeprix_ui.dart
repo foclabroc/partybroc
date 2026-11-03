@@ -31,7 +31,7 @@ class JpTv extends StatelessWidget {
   }
 
   Widget _item({bool small = false}) => Column(mainAxisSize: MainAxisSize.min, children: [
-        PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: small ? 220 : 380),
+        PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: small ? 330 : 380),
         const SizedBox(height: 16),
         Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(small ? 54 : 76, weight: 700, height: 1.1)),
         Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(small ? 32 : 42, color: Pb.muted)),
@@ -39,6 +39,25 @@ class JpTv extends StatelessWidget {
 
   Widget _round() {
     final reveal = live.phase == 'reveal';
+    // Question : la photo de l'objet en grand sur toute la hauteur, le reste à droite
+    if (!reveal) {
+      return TvPictureLayout(
+        picture: (size) => PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: size.width, radius: 40),
+        side: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TvHeader(label: 'Objet', index: live.i('index'), count: live.i('count'), live: live),
+          const Spacer(),
+          Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(70, weight: 700, height: 1.1)),
+          const SizedBox(height: 8),
+          Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(40, color: Pb.muted)),
+          const SizedBox(height: 40),
+          Text('Combien ça coûte ?', textAlign: TextAlign.center, style: Pb.t(56, weight: 700, color: Pb.yellow)),
+          const Spacer(),
+          TimeBar(endsIn: live.endsIn, duration: live.duration, height: 16),
+          const SizedBox(height: 24),
+          SizedBox(height: 90, child: TvWhoDone(room: room, done: live.pids('answered').toSet())),
+        ]),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(80, 40, 80, 40),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -80,8 +99,9 @@ class JpTv extends StatelessWidget {
     if (list.isEmpty) return Center(child: Text('Personne n’a proposé de prix 🤷', style: Pb.t(44, color: Pb.muted)));
     final gains = {for (final r in live.ranking) r.pid: r.gain};
     final many = list.length > 8;
-    return Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      for (final g in list.take(many ? 12 : 8))
+    // Tous les joueurs : la liste rétrécit si elle ne tient pas dans la hauteur
+    return LayoutBuilder(builder: (_, box) => Center(child: FittedBox(fit: BoxFit.scaleDown, child: SizedBox(width: box.maxWidth, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      for (final g in list)
         if (room.player(g['pid'] as String) case final p?)
           Container(
             margin: EdgeInsets.only(bottom: many ? 6 : 12),
@@ -106,7 +126,7 @@ class JpTv extends StatelessWidget {
               ),
             ]),
           ),
-    ]);
+    ])))));
   }
 }
 

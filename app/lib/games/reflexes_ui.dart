@@ -192,9 +192,10 @@ class RfxTv extends StatelessWidget {
 
   Widget _result() {
     final order = live.maps('order');
+    final k = order.length > 8 ? .78 : 1.0; // 2 colonnes au-delà de 8 joueurs
     final falses = live.pids('falseStart');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(160, 60, 160, 50),
+      padding: EdgeInsets.fromLTRB(order.length > 8 ? 80 : 160, 60, order.length > 8 ? 80 : 160, 50),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('${_info[type]?.$1 ?? ''}  Résultats', style: Pb.t(70, weight: 700)),
@@ -207,23 +208,25 @@ class RfxTv extends StatelessWidget {
         ]),
         const SizedBox(height: 30),
         if (order.isEmpty) Text('Personne n’a réussi cette épreuve 😅', style: Pb.t(50, color: Pb.muted)),
-        for (final o in order.take(8))
-          if (room.player(o['pid'] as String) case final p?)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(children: [
-                SizedBox(
-                  width: 90,
-                  child: Text(switch (o['place']) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '${o['place']}' }, style: Pb.t(56, weight: 700)),
-                ),
-                PbAvatar(size: 80, emoji: p.emoji, color: p.color, photoPath: p.photo),
-                const SizedBox(width: 20),
-                Expanded(child: Text(p.name, style: Pb.t(46, weight: 600))),
-                Text(_metric(o, type), style: Pb.t(46, weight: 700, color: Pb.cyan)),
-                const SizedBox(width: 40),
-                SizedBox(width: 180, child: Text('+${o['pts']}', textAlign: TextAlign.right, style: Pb.t(46, weight: 700, color: Pb.green))),
-              ]),
-            ),
+        tvTwoCols([
+          for (final o in order)
+            if (room.player(o['pid'] as String) case final p?)
+              Padding(
+                padding: EdgeInsets.only(bottom: 16 * k),
+                child: Row(children: [
+                  SizedBox(
+                    width: 90 * k,
+                    child: Text(switch (o['place']) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '${o['place']}' }, style: Pb.t(56 * k, weight: 700)),
+                  ),
+                  PbAvatar(size: 80 * k, emoji: p.emoji, color: p.color, photoPath: p.photo),
+                  SizedBox(width: 20 * k),
+                  Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(46 * k, weight: 600))),
+                  Text(_metric(o, type), style: Pb.t(46 * k, weight: 700, color: Pb.cyan)),
+                  SizedBox(width: 30 * k),
+                  SizedBox(width: 150 * k, child: Text('+${o['pts']}', textAlign: TextAlign.right, style: Pb.t(46 * k, weight: 700, color: Pb.green))),
+                ]),
+              ),
+        ]),
         if (falses.isNotEmpty) ...[
           const SizedBox(height: 10),
           Text('🚫 Faux départ : ${falses.map((f) => room.player(f)?.name ?? '?').join(', ')}', style: Pb.t(38, color: Pb.red)),

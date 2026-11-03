@@ -63,8 +63,9 @@ Widget choiceLabel(String v, String kind, double size, {Color color = Colors.whi
 /// 4 choix sur la TV (2×2). À la révélation : la bonne en avant, les autres pâles,
 /// et les avatars de ceux qui ont choisi chaque case.
 class TvChoices extends StatelessWidget {
-  const TvChoices({super.key, required this.room, required this.choices, this.kind = 'text', this.correct, this.picks = const {}, this.height = 150, this.imgs});
+  const TvChoices({super.key, required this.room, required this.choices, this.kind = 'text', this.correct, this.picks = const {}, this.height = 150, this.imgs, this.cols = 2});
   final RoomView room;
+  final int cols; // 2 = grille 2×2, 1 = les uns sous les autres (colonne étroite)
   final List<String> choices;
   final List<String?>? imgs; // photos des choix « emoji »
   final String kind;
@@ -118,12 +119,13 @@ class TvChoices extends StatelessWidget {
       );
     }
 
+    final n = cols < 1 ? 1 : cols;
     return Column(children: [
-      for (var r = 0; r * 2 < choices.length; r++) ...[
-        if (r > 0) const SizedBox(height: 22),
+      for (var r = 0; r * n < choices.length; r++) ...[
+        if (r > 0) SizedBox(height: n == 1 ? 18 : 22),
         Row(children: [
-          for (var i = r * 2; i < r * 2 + 2 && i < choices.length; i++) ...[
-            if (i > r * 2) const SizedBox(width: 22),
+          for (var i = r * n; i < r * n + n && i < choices.length; i++) ...[
+            if (i > r * n) const SizedBox(width: 22),
             Expanded(child: cell(i)),
           ],
         ]),

@@ -41,6 +41,13 @@ class MemGrid extends StatelessWidget {
   }
 }
 
+/// La grille la plus grande possible dans [size] (chaque case occupe 1,1 × sa taille avec la marge)
+Widget memGridFit(List<Map<String, dynamic>> cells, int cols, Size size) {
+  final rows = (cells.length / cols).ceil().clamp(1, 99);
+  final a = size.width / (cols * 1.1), b = size.height / (rows * 1.1);
+  return MemGrid(cells: cells, cols: cols, cell: (a < b ? a : b).floorToDouble());
+}
+
 /// Mémoire sur la TV
 class MemTv extends StatelessWidget {
   const MemTv({super.key, required this.room, required this.live});
@@ -69,7 +76,13 @@ class MemTv extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(80, 40, 80, 40),
         child: Column(children: [
           TvHeader(label: 'Image', index: live.i('index'), count: live.i('count'), live: live, extra: Text('👀 Mémorise !', style: Pb.t(50, weight: 700, color: Pb.yellow))),
-          Expanded(child: Center(child: MemGrid(cells: live.maps('cells'), cols: live.i('cols', 4), cell: 250))),
+          // La grille en grand, sur toute la place disponible
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: LayoutBuilder(builder: (_, box) => Center(child: memGridFit(live.maps('cells'), live.i('cols', 4), box.biggest))),
+            ),
+          ),
           TimeBar(endsIn: live.endsIn, duration: live.duration, height: 16),
         ]),
       );
@@ -77,6 +90,31 @@ class MemTv extends StatelessWidget {
   Widget _ask() {
     final reveal = live.phase == 'reveal';
     final picks = {for (final e in ((live['picks'] as Map?) ?? const {}).entries) e.key as String: (e.value as num).toInt()};
+    // Révélation : la grille revient en grand à gauche, question et réponses à droite
+    if (reveal) {
+      return TvPictureLayout(
+        square: false,
+        picture: (size) => memGridFit(live.maps('cells'), live.i('cols', 4), size),
+        side: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          TvHeader(label: 'Image', index: live.i('index'), count: live.i('count')),
+          const Spacer(),
+          Text(live.s('question') ?? '', textAlign: TextAlign.center, style: Pb.t(48, weight: 700, height: 1.15)),
+          const SizedBox(height: 30),
+          TvChoices(
+            room: room,
+            choices: live.pids('choices'),
+            kind: live.s('kind') ?? 'text',
+            imgs: live.optStrs('imgs'),
+            correct: live.i('correct'),
+            picks: picks,
+            height: 110,
+            cols: 1,
+          ),
+          const Spacer(),
+          SizedBox(height: 90, child: TvGains(room: room, ranking: live.ranking)),
+        ]),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(80, 40, 80, 40),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
