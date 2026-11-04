@@ -76,6 +76,27 @@ try {
     step('Fausse annonce bloquée, « Une ligne » vérifiée avec les boules tirées (300 points)');
   }
 
+  {
+    const g = offline();
+    g.mine.set('a', [7]);
+    g.mine.set('b', [8]);
+    g.phase = 'draw';
+    g.draw();
+    const n = g.rolling;
+    assert.ok(n && !g.drawnSet.has(n), 'la boule qui sort du boulier n’est pas encore tirée');
+    assert.equal(g.publicState().last, null);
+    g.reveal();
+    assert.ok(g.drawnSet.has(n) && g.rolling === null);
+    g.deadline = Date.now() + 3000;
+    g.togglePause();
+    assert.equal(g.paused, true);
+    g.draw();
+    assert.equal(g.rolling, null, 'en pause : pas de nouvelle boule');
+    g.togglePause();
+    assert.equal(g.paused, false);
+    step('Tirage en deux temps (boulier puis révélée), pause et reprise');
+  }
+
   // Partie complète en marquage automatique (cartons donnés au hasard à la fin du choix)
   const tv = await client(PORT);
   tv.send({ t: 'tv_hello' });

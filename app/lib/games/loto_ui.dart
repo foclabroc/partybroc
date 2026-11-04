@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -45,6 +47,147 @@ class LotoBall extends StatelessWidget {
       ),
     );
   }
+}
+
+/// La boule tirée sur la TV, version boulier : les boules tournent dans la sphère, puis une
+/// boule sort par le bas, grossit et vient se poser au centre avec un rebond
+class LotoDrumBall extends StatefulWidget {
+  const LotoDrumBall({super.key, required this.n, required this.size});
+  final int n;
+  final double size;
+
+  @override
+  State<LotoDrumBall> createState() => _LotoDrumBallState();
+}
+
+class _LotoDrumBallState extends State<LotoDrumBall> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2600));
+  final _rand = math.Random();
+  List<_DrumBall> _balls = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _roll();
+  }
+
+  @override
+  void didUpdateWidget(covariant LotoDrumBall old) {
+    super.didUpdateWidget(old);
+    if (old.n != widget.n) _roll();
+  }
+
+  void _roll() {
+    _balls = [
+      for (var i = 0; i < 18; i++)
+        _DrumBall(1 + _rand.nextInt(90), _rand.nextDouble() * math.pi * 2, .6 + _rand.nextDouble() * .9, .35 + _rand.nextDouble() * .6),
+    ];
+    _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.size;
+    return SizedBox(
+      width: s,
+      height: s,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) {
+          final t = _c.value;
+          // 0 → 0,62 : le boulier tourne ; 0,55 → 1 : la boule sort et vient au centre
+          final drum = t < .62 ? 1.0 : (1 - (t - .62) / .2).clamp(0.0, 1.0);
+          final out = ((t - .55) / .45).clamp(0.0, 1.0);
+          return Stack(alignment: Alignment.center, children: [
+            if (drum > 0)
+              Opacity(
+                opacity: drum,
+                child: CustomPaint(size: Size(s, s), painter: _DrumPainter(_balls, t)),
+              ),
+            if (out > 0)
+              Builder(builder: (_) {
+                final move = Curves.easeOutCubic.transform((out / .6).clamp(0.0, 1.0));
+                final scale = out < .6 ? .14 + .86 * move : 1 + .12 * math.sin((out - .6) / .4 * math.pi) * (1 - (out - .6) / .4);
+                final dy = (1 - move) * s * .42;
+                return Transform.translate(
+                  offset: Offset(0, dy),
+                  child: Transform.scale(scale: scale, child: LotoBall(n: widget.n, size: s)),
+                );
+              }),
+          ]);
+        },
+      ),
+    );
+  }
+}
+
+class _DrumBall {
+  const _DrumBall(this.n, this.phase, this.speed, this.reach);
+  final int n;
+  final double phase, speed, reach;
+}
+
+class _DrumPainter extends CustomPainter {
+  _DrumPainter(this.balls, this.t);
+  final List<_DrumBall> balls;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width * .44;
+    // la sphère
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(center: const Alignment(-.3, -.4), colors: [Colors.white.withValues(alpha: .16), Colors.white.withValues(alpha: .03)])
+            .createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    // le boulier tourne de plus en plus lentement
+    final turn = (1 - math.pow(1 - t.clamp(0, .62) / .62, 2)) * math.pi * 7;
+    final wire = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.white.withValues(alpha: .28);
+    for (var k = 0; k < 4; k++) {
+      final w = (math.cos(turn + k * math.pi / 4)).abs() * r;
+      canvas.drawOval(Rect.fromCenter(center: c, width: w * 2, height: r * 2), wire);
+    }
+    // les boules qui tournent dedans (tassées vers le bas, comme avec la gravité)
+    final br = size.width * .06;
+    for (final b in balls) {
+      final a = b.phase + turn * b.speed;
+      final p = c + Offset(math.cos(a) * r * b.reach * .78, math.sin(a) * r * b.reach * .55 + r * .22);
+      final col = lotoBallColor(b.n);
+      canvas.drawCircle(
+        p,
+        br,
+        Paint()
+          ..shader = RadialGradient(center: const Alignment(-.4, -.4), colors: [Color.lerp(col, Colors.white, .5)!, col, Color.lerp(col, Colors.black, .35)!], stops: const [0, .5, 1])
+              .createShader(Rect.fromCircle(center: p, radius: br)),
+      );
+      canvas.drawCircle(p, br * .45, Paint()..color = Colors.white);
+    }
+    // le cerclage et la sortie en bas
+    canvas.drawCircle(c, r, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..color = const Color(0xFFFFD23F));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromCenter(center: c + Offset(0, r), width: br * 3.2, height: br * 1.4), Radius.circular(br * .5)),
+      Paint()..color = const Color(0xFFFFD23F),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DrumPainter old) => old.t != t || old.balls != balls;
 }
 
 /// Un carton : 3 lignes × 9 colonnes, cases vides de couleur (comme un carton papier),
@@ -202,11 +345,13 @@ class LotoTv extends StatelessWidget {
           child: Column(children: [
             Text('Boule ${drawn.length} / 90', style: Pb.t(34, weight: 600, color: Pb.muted)),
             const SizedBox(height: 26),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 450),
-              transitionBuilder: (c, a) => ScaleTransition(scale: CurvedAnimation(parent: a, curve: Curves.elasticOut), child: c),
-              child: last == null ? const SizedBox(width: 400, height: 400) : LotoBall(key: ValueKey(last), n: last, size: 400),
-            ),
+            // La boule qui sort du boulier, puis la dernière boule tirée
+            if (live['rolling'] is num)
+              LotoDrumBall(n: (live['rolling'] as num).toInt(), size: 400)
+            else if (last != null)
+              LotoBall(n: last, size: 400)
+            else
+              const SizedBox(width: 400, height: 400),
             const SizedBox(height: 18),
             SizedBox(
               height: 56,
@@ -238,7 +383,7 @@ class LotoTv extends StatelessWidget {
                 ]),
               ),
             const SizedBox(height: 14),
-            if (ph == 'draw') TimeBar(endsIn: live.endsIn, duration: live.duration, height: 10),
+            if (ph == 'draw' && live['paused'] != true) TimeBar(endsIn: live.endsIn, duration: live.duration, height: 10),
             const SizedBox(height: 18),
             // Qui s'approche, et les gagnants
             Wrap(spacing: 18, runSpacing: 12, children: [
@@ -256,6 +401,22 @@ class LotoTv extends StatelessWidget {
         ),
       ]),
     );
+    if (live['paused'] == true) {
+      return Stack(children: [
+        Opacity(opacity: .3, child: content),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 40),
+            decoration: BoxDecoration(color: Pb.bg2, borderRadius: BorderRadius.circular(40), border: Border.all(color: Pb.yellow, width: 6)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.pause_circle_filled_rounded, size: 160, color: Pb.yellow),
+              Text('Pause', style: Pb.t(110, weight: 700)),
+              Text('L’hôte reprendra la partie', style: Pb.t(36, color: Pb.muted)),
+            ]),
+          ),
+        ),
+      ]);
+    }
     if (!win) return content;
     final pids = [for (final p in (ev!['pids'] as List? ?? const [])) p as String];
     return Stack(children: [
@@ -402,7 +563,14 @@ class _LotoPlayState extends State<LotoPlay> {
       'podium' => phoneRank(widget.you),
       _ => _game(),
     };
-    return PhoneGameFrame(stepKey: ph == 'podium' || ph == 'intro' || ph == 'choose' ? ph : 'game', skipLabel: ph == 'choose' ? 'Lancer sans attendre' : 'Boule suivante', isHost: widget.isHost, phase: ph, send: widget.send, child: body);
+    final paused = live['paused'] == true;
+    return PhoneGameFrame(
+        stepKey: ph == 'podium' || ph == 'intro' || ph == 'choose' ? ph : 'game',
+        skipLabel: ph == 'choose' ? 'Lancer sans attendre' : 'Boule suivante',
+        hostActions: ph == 'draw' || ph == 'win'
+            ? [(label: paused ? 'Reprendre' : 'Pause', icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded, msg: const {'t': 'game_pause'})]
+            : const [],
+        isHost: widget.isHost, phase: ph, send: widget.send, child: body);
   }
 
   Widget _cartons({required bool interactive}) {
@@ -546,7 +714,18 @@ class _LotoPlayState extends State<LotoPlay> {
             ]),
           ),
         ]),
-        if (live.phase == 'draw') ...[const SizedBox(height: 8), TimeBar(endsIn: live.endsIn, duration: live.duration, height: 5)],
+        if (live['paused'] == true)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Pb.yellow, borderRadius: BorderRadius.circular(12)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.pause_rounded, color: Pb.bg),
+              const SizedBox(width: 6),
+              Text('Pause', style: Pb.t(18, weight: 700, color: Pb.bg)),
+            ]),
+          )
+        else if (live.phase == 'draw') ...[const SizedBox(height: 8), TimeBar(endsIn: live.endsIn, duration: live.duration, height: 5)],
         const SizedBox(height: 12),
         if (win)
           Container(

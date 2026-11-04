@@ -11,6 +11,9 @@
 // les boules tirées ; faux = 5 s sans pouvoir réannoncer). « Automatique » : tout est marqué et
 // annoncé par le serveur. Plusieurs gagnants pour la même boule = gain partagé (chacun a tous
 // les points).
+// Tirage en deux temps : `rolling` = la boule qui sort du boulier (animation de la TV,
+// rollMs), puis elle rejoint `drawn` (tableau, téléphones, annonces, vérifications).
+// Pause de l'hôte (`game_pause`) : tout s'arrête, le minuteur reprend où il en était.
 import crypto from 'node:crypto';
 import { BaseGame, fastTimings, shuffle } from './common.js';
 
@@ -25,6 +28,10 @@ export const LOTO = fastTimings({
   introMs: 6000,
   chooseMs: 90000,        // temps pour choisir ses cartons
   readyMs: 2500,          // tout le monde a choisi : petite pause avant la 1re boule
+  rollMs: 2600,           // le boulier tourne sur la TV : la boule n'est dévoilée qu'après
+  minWaitMs: 1500,        // entre deux boules, au moins ce temps après le dévoilement
+  rollMs: 2600,           // animation du boulier sur la TV
+  gapMs: 1500,            // au moins ça entre une boule révélée et la suivante
   winMs: 6000,            // pause sur le gain (les autres gagnants de la même boule y entrent aussi)
   lockMs: 5000,           // fausse annonce
   podiumMs: 25000,
@@ -159,6 +166,32 @@ export class LotoGame extends BaseGame {
     this.lock = new Map();     // pid -> fin du blocage (fausse annonce)
     this.event = null;
     this.seq = 0;
+    this.rolling = null;       // boule en train de sortir du boulier
+    this.paused = false;
+  }
+
+  // On garde la suite prévue pour pouvoir la reprendre après une pause
+  schedule(ms, fn) {
+    this.next = fn;
+    super.schedule(ms, fn);
+  }
+
+  togglePause() {
+    if (['intro', 'podium'].includes(this.phase)) return;
+    if (!this.paused) {
+      this.paused = true;
+      this.pausedLeft = Math.max(0, this.deadline - Date.now());
+      this.pausedDuration = this.duration;
+      clearTimeout(this.timer);
+      this.note('pause');
+    } else {
+      this.paused = false;
+      const fn = this.next;
+      super.schedule(this.pausedLeft, () => fn && fn());
+      this.duration = this.pausedDuration;
+      this.note('resume');
+    }
+    this.changed();
   }
 
   get prize() { return PRIZES[this.stage] ?? null; }
@@ -231,18 +264,30 @@ export class LotoGame extends BaseGame {
 
   // ---------------------------------------------------------------- tirage
 
+  // Nouvelle boule : la TV fait tourner le boulier (phase « roll », numéro seulement dans
+  // `rolling` pour l'animation), puis la boule est dévoilée à tous (reveal)
+  // Une boule sort du boulier (la TV l'anime), puis elle est révélée
   draw() {
-    if (this.over) return;
+    if (this.over || this.paused) return;
     const n = this.bag.pop();
     if (n === undefined) return this.end();
+    this.rolling = n;
+    this.phase = 'draw';
+    this.schedule(LOTO.rollMs, () => this.reveal());
+    this.changed();
+  }
+
+  reveal() {
+    const n = this.rolling;
+    if (n == null) return;
+    this.rolling = null;
     this.drawn.push(n);
     this.drawnSet.add(n);
-    this.phase = 'draw';
     if (this.auto) {
       for (const pid of this.mine.keys()) if (this.grids(pid).some((g) => g.some((row) => row.includes(n)))) this.marks.get(pid).add(n);
       if (this.autoWin()) return;
     }
-    this.schedule(this.speed, () => this.draw());
+    this.schedule(Math.max(LOTO.gapMs, this.speed - LOTO.rollMs), () => this.draw());
     this.changed();
   }
 
@@ -278,7 +323,7 @@ export class LotoGame extends BaseGame {
     // Automatique : les boules déjà tirées donnent peut-être déjà le prix suivant
     if (this.auto && this.autoWin()) return;
     this.phase = 'draw';
-    this.schedule(Math.round(this.speed / 2), () => this.draw());
+    this.schedule(LOTO.gapMs, () => this.draw());
     this.changed();
   }
 
@@ -288,7 +333,7 @@ export class LotoGame extends BaseGame {
     const last = this.winners[this.winners.length - 1];
     // Pendant la pause d'un gain : un autre gagnant de la même boule partage le prix
     const prize = this.phase === 'win' ? PRIZES.find((x) => x.id === last.prize) : this.prize;
-    if (!prize || (this.phase !== 'draw' && this.phase !== 'win')) return;
+    if (!prize || !['draw', 'roll', 'win'].includes(this.phase)) return;
     const ok = this.grids(p.pid).some((g) => fullLines(g, this.drawnSet) >= prize.lines);
     if (!ok) {
       this.lock.set(p.pid, Date.now() + LOTO.lockMs);
@@ -312,6 +357,8 @@ export class LotoGame extends BaseGame {
   onMessage(p, m) {
     if (m.t === 'loto_pick') return this.pick(p, m.no);
     if (m.t === 'loto_ready') return this.setReady(p);
+    if (m.t === 'game_pause' && p.pid === this.room.hostPid) return this.togglePause();
+    if (this.paused && m.t === 'game_skip') return; // en pause : « Suivant » ne fait rien
     if (m.t === 'loto_claim') return this.claim(p);
     if (m.t === 'loto_mark') {
       const marks = this.marks.get(p.pid);
@@ -324,7 +371,11 @@ export class LotoGame extends BaseGame {
       // « Suivant » : fin du choix, ou boule suivante tout de suite
       if (this.phase === 'intro') this.choose();
       else if (this.phase === 'choose') this.chosen();
-      else if (this.phase === 'draw') this.draw();
+      else if (this.phase === 'draw') {
+        if (this.rolling != null) this.reveal();
+        else this.draw();
+      }
+      else if (this.phase === 'roll') this.reveal();
       else if (this.phase === 'win') this.afterWin();
     });
   }
@@ -338,7 +389,7 @@ export class LotoGame extends BaseGame {
     const prize = this.prize;
     // Qui s'approche du prochain prix (calculé avec les boules tirées, pas les marques)
     const near = [];
-    if (prize && this.phase === 'draw') {
+    if (prize && (this.phase === 'draw' || this.phase === 'roll')) {
       for (const pid of this.playing()) {
         const miss = Math.min(...this.grids(pid).map((g) => missingFor(g, this.drawnSet, prize.lines)));
         if (miss > 0 && miss <= 2) near.push({ pid, miss });
@@ -353,6 +404,9 @@ export class LotoGame extends BaseGame {
       perPlayer: this.perPlayer,
       drawn: this.drawn,
       last: this.drawn[this.drawn.length - 1] ?? null,
+      rolling: this.rolling,
+      paused: this.paused,
+      rolling: this.phase === 'roll' ? this.rolling : null,
       nick: NICKNAMES[this.drawn[this.drawn.length - 1]] ?? null,
       prize: prize ? { id: prize.id, title: prize.title, points: prize.points } : null,
       auto: this.auto,

@@ -474,10 +474,14 @@ class PhoneHostBar extends StatelessWidget {
 
 /// Commandes de l'hôte pendant un jeu, rangées derrière un bouton « ⋯ » (en haut à droite) :
 /// passer à l'étape suivante, arrêter la partie
+/// Action de l'hôte en plus (ex. « Pause » au Loto) : message envoyé au jeu
+typedef HostAction = ({String label, IconData icon, Map<String, dynamic> msg});
+
 class PhoneHostMenu extends StatelessWidget {
-  const PhoneHostMenu({super.key, required this.send, this.skipLabel = 'Suivant'});
+  const PhoneHostMenu({super.key, required this.send, this.skipLabel = 'Suivant', this.actions = const []});
   final void Function(Map<String, dynamic>) send;
   final String skipLabel;
+  final List<HostAction> actions;
 
   void _g(Map<String, dynamic> m) => send({'t': 'game_msg', 'm': m});
 
@@ -492,6 +496,15 @@ class PhoneHostMenu extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Text('Commandes de l’hôte', textAlign: TextAlign.center, style: Pb.t(18, weight: 700, color: Pb.muted)),
             const SizedBox(height: 14),
+            for (final (i, a) in actions.indexed) ...[
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Pb.yellow, foregroundColor: Pb.bg),
+                onPressed: () => Navigator.pop(ctx, 'a$i'),
+                icon: Icon(a.icon),
+                label: Text(a.label),
+              ),
+              const SizedBox(height: 10),
+            ],
             FilledButton.icon(
               onPressed: () => Navigator.pop(ctx, 'skip'),
               icon: const Icon(Icons.skip_next_rounded),
@@ -508,6 +521,7 @@ class PhoneHostMenu extends StatelessWidget {
       ),
     );
     if (what == 'skip') _g({'t': 'game_skip'});
+    if (what != null && what.startsWith('a')) _g(actions[int.parse(what.substring(1))].msg);
     if (what != 'end' || !context.mounted) return;
     final ok = await showDialog<bool>(
       context: context,
@@ -542,7 +556,8 @@ class PhoneHostMenu extends StatelessWidget {
 
 /// Squelette d'un écran de jeu côté téléphone : contenu + barre de l'hôte
 class PhoneGameFrame extends StatelessWidget {
-  const PhoneGameFrame({super.key, required this.stepKey, required this.child, required this.isHost, required this.phase, required this.send, this.skipLabel = 'Suivant'});
+  const PhoneGameFrame({super.key, required this.stepKey, required this.child, required this.isHost, required this.phase, required this.send, this.skipLabel = 'Suivant', this.hostActions = const []});
+  final List<HostAction> hostActions;
   final String stepKey;
   final Widget child;
   final bool isHost;
@@ -563,7 +578,7 @@ class PhoneGameFrame extends StatelessWidget {
         if (isHost) PhoneHostBar(phase: phase, send: send, skipLabel: skipLabel),
       ]),
       if (isHost && phase != 'podium')
-        Positioned(top: 0, right: 6, child: SafeArea(child: PhoneHostMenu(send: send, skipLabel: skipLabel))),
+        Positioned(top: 0, right: 6, child: SafeArea(child: PhoneHostMenu(send: send, skipLabel: skipLabel, actions: hostActions))),
     ]);
   }
 }
