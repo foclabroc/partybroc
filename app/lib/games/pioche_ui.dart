@@ -11,22 +11,13 @@ import 'common_ui.dart';
 
 const _colorNames = {'r': 'rouge', 'j': 'jaune', 'v': 'vert', 'b': 'bleu'};
 
+// Couleurs des cartes (celles du jeu de cartes de assets/cards)
 Color pchColor(String c) => switch (c) {
-      'r' => const Color(0xFFE8443A),
-      'j' => const Color(0xFFF5C318),
-      'v' => const Color(0xFF2FB25C),
-      'b' => const Color(0xFF2D7FE0),
+      'r' => const Color(0xFFFF5555),
+      'j' => const Color(0xFFFFAA00),
+      'v' => const Color(0xFF55AA55),
+      'b' => const Color(0xFF5555FF),
       _ => const Color(0xFF241B3D),
-    };
-
-// « passe » et « sens » sont dessinés avec des icônes (la police n'a pas ces symboles)
-String _symbol(String v) => switch (v) {
-      'skip' => '',
-      'rev' => '',
-      'p2' => '+2',
-      'p4' => '+4',
-      'joker' => '',
-      _ => v,
     };
 
 String _cardName(Map card) => switch (card['v']) {
@@ -38,7 +29,8 @@ String _cardName(Map card) => switch (card['v']) {
       _ => '${card['v']} ${_colorNames[card['c']] ?? ''}',
     };
 
-/// Une carte de Broc-Pioche (largeur [w], hauteur 1,5 × w)
+/// Une carte de Broc-Pioche (largeur [w], hauteur 1,5 × w). Images : `assets/cards/{couleur}_{valeur}.webp`
+/// (r, j, v, b ; 0-9, skip, rev, p2 ; w_joker, w_p4), découpées dans le jeu de cartes SVG fourni.
 class PchCard extends StatelessWidget {
   const PchCard({super.key, required this.c, required this.v, required this.w, this.dim = false, this.glow = false});
   final String c, v;
@@ -50,11 +42,7 @@ class PchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final wild = c == 'w';
-    final sym = _symbol(v);
-    final icon = switch (v) { 'skip' => Icons.block_rounded, 'rev' => Icons.swap_horiz_rounded, _ => null };
-    final light = c == 'j';
-    final fg = light ? const Color(0xFF3A2A00) : Colors.white;
+    final r = BorderRadius.circular(w * .16);
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 150),
       opacity: dim ? .38 : 1,
@@ -62,55 +50,28 @@ class PchCard extends StatelessWidget {
         width: w,
         height: w * 1.5,
         decoration: BoxDecoration(
-          color: pchColor(c),
-          borderRadius: BorderRadius.circular(w * .14),
-          border: Border.all(color: Colors.white, width: w * .05),
+          borderRadius: r,
           boxShadow: [
             if (glow) BoxShadow(color: Pb.yellow.withValues(alpha: .8), blurRadius: w * .25, spreadRadius: w * .03),
             BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: w * .08, offset: Offset(0, w * .04)),
           ],
         ),
-        child: Stack(children: [
-          // Carte noire : un losange des 4 couleurs au centre
-          if (wild)
-            Center(
-              child: Transform.rotate(
-                angle: .785,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(w * .08),
-                  child: SizedBox(
-                    width: w * .5,
-                    height: w * .5,
-                    child: Column(children: [
-                      Expanded(child: Row(children: [Expanded(child: ColoredBox(color: pchColor('r'))), Expanded(child: ColoredBox(color: pchColor('b')))])),
-                      Expanded(child: Row(children: [Expanded(child: ColoredBox(color: pchColor('j'))), Expanded(child: ColoredBox(color: pchColor('v')))])),
-                    ]),
-                  ),
-                ),
-              ),
-            ),
-          if (sym.isNotEmpty)
-            Center(
-              child: Text(sym,
-                  style: Pb.t(w * (sym.length > 1 ? .46 : .62), weight: 700, color: fg).copyWith(
-                    shadows: [Shadow(color: Colors.black.withValues(alpha: light ? 0 : .35), offset: Offset(0, w * .02), blurRadius: w * .03)],
-                  )),
-            ),
-          if (icon != null) Center(child: Icon(icon, size: w * .62, color: fg)),
-          // Petits symboles dans les coins (pas retournés : un 6 resterait un 6)
-          if ((sym.isNotEmpty || icon != null) && w >= 60) ...[
-            Positioned(left: w * .09, top: w * .05, child: _corner(sym, icon, fg)),
-            Positioned(right: w * .09, bottom: w * .05, child: _corner(sym, icon, fg)),
-          ],
-        ]),
+        child: Image.asset(
+          'assets/cards/${c}_$v.webp',
+          width: w,
+          height: w * 1.5,
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => Container(
+            decoration: BoxDecoration(color: pchColor(c), borderRadius: r, border: Border.all(color: Colors.white, width: w * .05)),
+            alignment: Alignment.center,
+            child: Text(_cardName({'c': c, 'v': v}), textAlign: TextAlign.center, style: Pb.t(w * .16, weight: 700)),
+          ),
+        ),
       ),
     );
   }
-}
-
-extension on PchCard {
-  Widget _corner(String sym, IconData? icon, Color fg) =>
-      icon != null ? Icon(icon, size: w * .2, color: fg) : Text(sym, style: Pb.t(w * .17, weight: 700, color: fg));
 }
 
 /// Dos de carte (la pioche)

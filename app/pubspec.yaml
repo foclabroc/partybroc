@@ -63,6 +63,7 @@ flutter:
   assets:
     - assets/music/
     - assets/sfx/
+    - assets/cards/
   fonts:
     - family: Fredoka
       fonts:
