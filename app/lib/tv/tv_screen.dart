@@ -612,28 +612,46 @@ class _GamesStrip extends StatelessWidget {
   const _GamesStrip({required this.room});
   final RoomView room;
 
-  int get _perRow => room.games.length > 14 ? 8 : (room.games.length > 12 ? 7 : 6);
-
   @override
   Widget build(BuildContext context) {
     final host = room.host;
+    // L'onglet affiché suit le jeu choisi par l'hôte (Jeux de société / Jeux fun)
+    final cur = room.games.where((g) => g.id == room.selectedGame).firstOrNull;
+    final tab = cur?.cat ?? gameCategories.last.$1;
+    final games = room.games.where((g) => g.cat == tab).toList();
+    final perRow = games.length > 12 ? 7 : 6;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(
-        host == null
-            ? 'Le premier joueur arrivé choisira le jeu'
-            : '${host.name} choisit le jeu sur son téléphone',
-        style: Pb.t(28, color: Pb.muted),
-      ),
+      Row(children: [
+        Expanded(
+          child: Text(
+            host == null ? 'Le premier joueur arrivé choisira le jeu' : '${host.name} choisit le jeu sur son téléphone',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Pb.t(28, color: Pb.muted),
+          ),
+        ),
+        for (final c in gameCategories) ...[
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+            decoration: BoxDecoration(
+              color: c.$1 == tab ? Pb.pink : Pb.card.withValues(alpha: .6),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Text('${c.$3} ${c.$2} (${room.games.where((g) => g.cat == c.$1).length})',
+                style: Pb.t(24, weight: 600, color: c.$1 == tab ? Pb.text : Pb.muted)),
+          ),
+        ],
+      ]),
       const SizedBox(height: 14),
-      // Les jeux sur deux rangées (6 ou 7 par rangée)
-      for (var row = 0; row * _perRow < room.games.length; row++) ...[
+      for (var row = 0; row * perRow < games.length; row++) ...[
         if (row > 0) const SizedBox(height: 12),
         Row(children: [
-          for (var i = row * _perRow; i < row * _perRow + _perRow; i++) ...[
-            if (i > row * _perRow) const SizedBox(width: 14),
+          for (var i = row * perRow; i < row * perRow + perRow; i++) ...[
+            if (i > row * perRow) const SizedBox(width: 14),
             Expanded(
-              child: i < room.games.length
-                  ? _GameCard(g: room.games[i], selected: room.games[i].id == room.selectedGame, compact: _perRow > 6)
+              child: i < games.length
+                  ? _GameCard(g: games[i], selected: games[i].id == room.selectedGame, compact: perRow > 6)
                   : const SizedBox.shrink(),
             ),
           ],

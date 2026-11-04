@@ -71,6 +71,9 @@ class SoireeView {
   final String? last;
 }
 
+/// Onglets du choix des jeux : (id, titre, emoji)
+const gameCategories = [('societe', 'Jeux de société', '🎲'), ('fun', 'Jeux fun', '🎉')];
+
 class GameInfo {
   GameInfo.fromJson(Map<String, dynamic> j)
       : id = j['id'] as String,
@@ -79,6 +82,7 @@ class GameInfo {
         min = (j['min'] as num).toInt(),
         ready = j['ready'] == true,
         pitch = (j['pitch'] as String?) ?? '',
+        cat = (j['cat'] as String?) ?? 'fun',
         options = {
           for (final e in ((j['options'] as Map?) ?? const {}).entries)
             e.key as String: GameOption.fromJson(e.value as Map<String, dynamic>),
@@ -87,6 +91,7 @@ class GameInfo {
   final String id;
   final String title;
   final String emoji;
+  final String cat; // onglet : 'societe' (Jeux de société) ou 'fun' (Jeux fun)
   final int min;
   final bool ready;
   final String pitch;

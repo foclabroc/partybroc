@@ -838,6 +838,7 @@ class _GamePicker extends StatefulWidget {
 
 class _GamePickerState extends State<_GamePicker> {
   bool _open = false;
+  String? _tab; // onglet affiché dans la liste (par défaut : celui du jeu choisi)
 
   @override
   Widget build(BuildContext context) {
@@ -854,7 +855,10 @@ class _GamePickerState extends State<_GamePicker> {
           duration: const Duration(milliseconds: 200),
           child: const Icon(Icons.expand_more_rounded, color: Pb.text, size: 30),
         ),
-        onTap: () => setState(() => _open = !_open),
+        onTap: () => setState(() {
+          _open = !_open;
+          _tab = null; // à l'ouverture : l'onglet du jeu choisi
+        }),
       ),
       AnimatedSize(
         duration: const Duration(milliseconds: 220),
@@ -865,8 +869,24 @@ class _GamePickerState extends State<_GamePicker> {
             : Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Column(children: [
+                  // Onglets : Jeux de société / Jeux fun
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(children: [
+                      for (final c in gameCategories) ...[
+                        if (c != gameCategories.first) const SizedBox(width: 8),
+                        Expanded(
+                          child: _CatTab(
+                            label: '${c.$3} ${c.$2}',
+                            selected: c.$1 == (_tab ?? cur.cat),
+                            onTap: () => setState(() => _tab = c.$1),
+                          ),
+                        ),
+                      ],
+                    ]),
+                  ),
                   for (final g in room.games)
-                    if (g.id != cur.id)
+                    if (g.id != cur.id && g.cat == (_tab ?? cur.cat))
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _GameTile(
@@ -885,6 +905,33 @@ class _GamePickerState extends State<_GamePicker> {
       ),
       const SizedBox(height: 8),
     ]);
+  }
+}
+
+/// Onglet de la liste des jeux (téléphone de l'hôte)
+class _CatTab extends StatelessWidget {
+  const _CatTab({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? Pb.pink : Pb.card.withValues(alpha: .7),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Text(label, textAlign: TextAlign.center, style: Pb.t(15, weight: 700, color: selected ? Pb.text : Pb.muted)),
+        ),
+      ),
+    );
   }
 }
 

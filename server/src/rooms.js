@@ -134,7 +134,7 @@ export class Room {
       hostPid: this.hostPid,
       tvConnected: this.tvs.size > 0,
       selectedGame: this.selectedGame,
-      games: GAMES.map(({ id, title, emoji, min, ready, pitch, options }) => ({ id, title, emoji, min, ready, pitch, options: options || {} })),
+      games: GAMES.map(({ id, title, emoji, min, ready, pitch, options, cat }) => ({ id, title, emoji, min, ready, pitch, cat, options: options || {} })),
       options: this.options[this.selectedGame] || {},
       game: this.game ? this.game.publicState() : null,
       teams: this.teams.on ? this.teamsView() : null,
