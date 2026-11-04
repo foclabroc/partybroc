@@ -220,6 +220,7 @@ class VoiceDirector {
           return c != null && c < a.length ? 'C’était : ${a[c]}' : null;
         }
       case 'loto':
+        if (phase == 'choose') return 'Choisissez vos cartons sur votre téléphone !';
         if (phase == 'draw' && live['last'] is num) {
           final nick = s('nick');
           return nick.isEmpty ? 'Le ${live['last']}' : 'Le ${live['last']}, $nick';
@@ -227,7 +228,7 @@ class VoiceDirector {
         if (phase == 'win') {
           final e = live['event'];
           if (e is Map && e['k'] == 'win') {
-            final what = switch (e['prize']) { 'quine' => 'Quine', 'double' => 'Double quine', _ => 'Carton plein' };
+            final what = switch (e['prize']) { 'ligne' => 'Une ligne', 'deux' => 'Deux lignes', _ => 'Carton plein' };
             final who = [for (final p in (e['pids'] as List? ?? const [])) name(p)].join(' et ');
             return '$what pour $who !';
           }
