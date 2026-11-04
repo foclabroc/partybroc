@@ -1,6 +1,8 @@
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+import 'package:web/web.dart' as web;
+
 /// 'done' (déjà sur l'écran d'accueil), 'prompt' (Android peut installer d'un appui),
 /// 'ios' (menu Partager), 'none' (menu du navigateur). Voir web/flutter_bootstrap.js.
 String installKind() {
@@ -20,3 +22,15 @@ Future<bool> install() async {
     return false;
   }
 }
+
+/// Navigateur d'un téléphone Android : on propose l'appli PartyBroc (APK)
+bool isAndroidBrowser() {
+  try {
+    return web.window.navigator.userAgent.contains('Android');
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Lance le téléchargement de l'APK (le navigateur le range dans Téléchargements)
+void openApkDownload(String url) => web.window.location.href = url;

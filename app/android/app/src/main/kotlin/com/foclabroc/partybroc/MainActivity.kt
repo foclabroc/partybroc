@@ -16,7 +16,7 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // La TV ne doit pas se mettre en veille pendant une partie
+        // La TV (et le téléphone du joueur) ne doit pas se mettre en veille pendant une partie
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
@@ -56,6 +56,24 @@ class MainActivity : FlutterActivity() {
                 }
             } catch (e: Exception) {
                 result.error("update", e.message, null)
+            }
+        }
+        // Appli téléphone : inviter des joueurs (menu de partage) et ouvrir un lien (SMS, WhatsApp…)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "partybroc/share").setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "share" -> {
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(Intent.EXTRA_SUBJECT, call.argument<String>("title") ?: "PartyBroc")
+                            .putExtra(Intent.EXTRA_TEXT, call.argument<String>("text") ?: "")
+                        result.success(tryStart(Intent.createChooser(send, "Inviter des joueurs")))
+                    }
+                    "open" -> result.success(tryStart(Intent(Intent.ACTION_VIEW, Uri.parse(call.argument<String>("url")!!))))
+                    else -> result.notImplemented()
+                }
+            } catch (e: Exception) {
+                result.error("share", e.message, null)
             }
         }
     }

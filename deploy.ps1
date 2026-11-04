@@ -3,6 +3,7 @@
 # 1. récupère le code du serveur (git pull)
 # 2. installe les dépendances Node
 # 3. télécharge le site compilé (release web-latest) dans D:\partybroc\web
+#    + assetlinks.json (release tv-latest) : les liens /play ouvrent l'appli Android
 # 4. redémarre le service partybroc
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -35,6 +36,11 @@ Expand-Archive $zip -DestinationPath $tmp
 if (Test-Path $web) { Remove-Item $web -Recurse -Force }
 Rename-Item $tmp 'web'
 Remove-Item $zip
+# Lien entre le site et l'appli Android téléphone (pas grave s'il manque : le QR ouvre alors le navigateur)
+try {
+  New-Item -ItemType Directory -Force (Join-Path $web '.well-known') | Out-Null
+  Invoke-WebRequest "https://github.com/$repo/releases/download/tv-latest/assetlinks.json" -OutFile (Join-Path $web '.well-known\assetlinks.json')
+} catch { Write-Host "assetlinks.json pas encore publié (appli Android) : on continue." -ForegroundColor Yellow }
 
 Write-Host '== Redémarrage du service' -ForegroundColor Cyan
 nssm restart partybroc

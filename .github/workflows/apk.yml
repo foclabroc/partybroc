@@ -1,9 +1,12 @@
-# Compile l'appli Android TV (PartyBroc TV) et la publie dans la release « tv-latest »
-# (partybroc-tv.apk). Elle ne tourne que si la clé de signature est dans les
+# Compile les deux applis Android et les publie dans la release « tv-latest » :
+#   PartyBroc TV (--flavor tv)       → partybroc-tv.apk + tv-version.json
+#   PartyBroc téléphone (--flavor phone) → partybroc.apk + phone-version.json
+#   assetlinks.json : copié par deploy.ps1 dans web/.well-known/ (les liens /play ouvrent l'appli)
+# Elle ne tourne que si la clé de signature est dans les
 # secrets du dépôt (Settings → Secrets and variables → Actions) :
 #   ANDROID_KEYSTORE_BASE64  le fichier partybroc-tv.jks encodé en base64
 #   ANDROID_KEYSTORE_PASSWORD  son mot de passe (alias : partybroc)
-# Toujours la même clé, sinon la TV refuse la mise à jour.
+# Toujours la même clé, sinon Android refuse la mise à jour.
 name: apk
 
 on:
@@ -60,19 +63,32 @@ jobs:
             "$RUNNER_TEMP/partybroc-tv.jks" "$KEYSTORE_PW" "$KEYSTORE_PW" > android/key.properties
           flutter pub get
           # un téléchargement raté chez GitHub (ex. CMake corrompu) : on réessaie une fois
-          flutter build apk --release --target-platform android-arm,android-arm64 || {
-            echo "Échec, nouvel essai dans 20 s"; sleep 20
-            rm -rf "$ANDROID_HOME/cmake" 2>/dev/null || true
-            flutter build apk --release --target-platform android-arm,android-arm64
+          build() {
+            flutter build apk --release --flavor "$1" --target-platform android-arm,android-arm64 || {
+              echo "Échec, nouvel essai dans 20 s"; sleep 20
+              rm -rf "$ANDROID_HOME/cmake" 2>/dev/null || true
+              flutter build apk --release --flavor "$1" --target-platform android-arm,android-arm64
+            }
           }
-          cp build/app/outputs/flutter-apk/app-release.apk ../partybroc-tv.apk
+          build tv
+          cp build/app/outputs/flutter-apk/app-tv-release.apk ../partybroc-tv.apk
+          build phone
+          cp build/app/outputs/flutter-apk/app-phone-release.apk ../partybroc.apk
+          # Empreinte de la clé : le site déclare que les liens /play peuvent ouvrir l'appli téléphone
+          FP=$(keytool -list -v -keystore "$RUNNER_TEMP/partybroc-tv.jks" -alias partybroc -storepass "$KEYSTORE_PW" \
+            | grep -E '^\s*SHA256:' | head -1 | sed -E 's/^\s*SHA256:\s*//')
+          test -n "$FP"
+          jq -n --arg fp "$FP" '[{relation: ["delegate_permission/common.handle_all_urls"],
+            target: {namespace: "android_app", package_name: "com.foclabroc.partybroc.play", sha256_cert_fingerprints: [$fp]}}]' > ../assetlinks.json
+          cat ../assetlinks.json
           rm -f android/key.properties "$RUNNER_TEMP/partybroc-tv.jks"
-          # Fichier lu par l'appli TV pour savoir si une mise à jour existe
+          # Fichiers lus par les applis pour savoir si une mise à jour existe
           VER=$(grep -E '^version:' pubspec.yaml | sed -E 's/version:[[:space:]]*//')
           NAME=${VER%%+*}; CODE=${VER##*+}
           NOTES=$(git log -1 --pretty=%s | head -c 300)
           jq -n --arg name "$NAME" --argjson code "$CODE" --arg notes "$NOTES" \
             '{versionName: $name, versionCode: $code, notes: $notes}' > ../tv-version.json
+          cp ../tv-version.json ../phone-version.json
           cat ../tv-version.json
 
       - name: Publier dans la release tv-latest
@@ -81,8 +97,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view tv-latest >/dev/null 2>&1 || \
-            gh release create tv-latest --title "Appli Android TV (dernière version)" --notes "Construite automatiquement depuis main." --latest=false
-          # l'APK d'abord, le fichier de version ensuite (jamais de version annoncée sans son APK)
-          gh release upload tv-latest partybroc-tv.apk --clobber
-          gh release upload tv-latest tv-version.json --clobber
+            gh release create tv-latest --title "Applis Android (dernière version)" --notes "Construite automatiquement depuis main." --latest=false
+          # les APK d'abord, les fichiers de version ensuite (jamais de version annoncée sans son APK)
+          gh release upload tv-latest partybroc-tv.apk partybroc.apk assetlinks.json --clobber
+          gh release upload tv-latest tv-version.json phone-version.json --clobber
           gh release edit tv-latest --notes "Construite automatiquement depuis main (${GITHUB_SHA::7})."

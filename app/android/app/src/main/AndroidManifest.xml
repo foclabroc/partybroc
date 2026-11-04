@@ -1,22 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- PartyBroc TV : l'écran de la TV en appli native (Android TV) -->
+    <!-- Commun aux deux applis : PartyBroc TV (src/tv) et PartyBroc téléphone (src/phone) -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Mise à jour automatique : l'appli peut proposer d'installer sa nouvelle version -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
-    <!-- Pas d'écran tactile ni de leanback obligatoires : s'installe aussi sur tablette -->
-    <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
-    <uses-feature android:name="android.software.leanback" android:required="false"/>
-
     <application
-        android:label="PartyBroc TV"
+        android:label="${appLabel}"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
-        android:banner="@drawable/banner">
+        android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:screenOrientation="landscape"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -33,7 +27,6 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
             </intent-filter>
         </activity>
         <!-- Partage de l'APK téléchargé avec l'installateur Android -->

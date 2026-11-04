@@ -30,9 +30,12 @@ import '../games/party_ui.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import '../app_mode.dart';
+import 'app_update.dart';
 import 'home_icon/home_icon.dart';
 import 'invite/invite.dart';
 import 'profile.dart';
+import 'scan_screen.dart';
 
 enum _Step { loading, form, joining, lobby }
 
@@ -468,6 +471,7 @@ class _PlayScreenState extends State<PlayScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(22, 40, 22, 30),
       children: [
+        const PhoneUpdateBanner(),
         const Center(child: PbLogo(size: 38)),
         const SizedBox(height: 26),
         Text('Code affiché sur la TV (ou nom du salon permanent)', style: Pb.t(16, weight: 600, color: Pb.muted)),
@@ -486,6 +490,19 @@ class _PlayScreenState extends State<PlayScreen> {
               .copyWith(letterSpacing: _code.text.length > 6 ? 4 : 14),
           decoration: const InputDecoration(hintText: 'ABCD', counterText: ''),
         ),
+        // Appli téléphone : scanner le QR de la TV au lieu de taper le code
+        if (isPhoneApp) ...[
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final code = await scanRoomCode(context);
+              if (code == null || !mounted) return;
+              setState(() => _code.text = code);
+            },
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            label: const Text('Scanner le QR de la TV'),
+          ),
+        ],
         // Salon permanent : mot de passe (sauf si ce téléphone y est déjà venu)
         if (_isPerm(_cleanCode(_code.text))) ...[
           const SizedBox(height: 14),
@@ -590,6 +607,7 @@ class _LobbyView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 40, 20, 24),
       children: [
+        const PhoneUpdateBanner(),
         // ---- Moi ----
         if (me != null)
           Container(

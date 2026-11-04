@@ -38,6 +38,23 @@ android {
         versionName = flutter.versionName
     }
 
+    // Deux applis dans le même code :
+    //   tv    → PartyBroc TV (écran de la TV, Android TV), com.foclabroc.partybroc
+    //   phone → PartyBroc (manette du joueur sur téléphone), com.foclabroc.partybroc.play
+    // Compiler avec : flutter build apk --flavor tv   (ou --flavor phone)
+    flavorDimensions += "app"
+    productFlavors {
+        create("tv") {
+            dimension = "app"
+            manifestPlaceholders["appLabel"] = "PartyBroc TV"
+        }
+        create("phone") {
+            dimension = "app"
+            applicationIdSuffix = ".play"
+            manifestPlaceholders["appLabel"] = "PartyBroc"
+        }
+    }
+
     signingConfigs {
         if (keyProps.getProperty("storeFile") != null) {
             create("release") {
@@ -67,6 +84,6 @@ flutter {
 }
 
 dependencies {
-    // FileProvider (mise à jour automatique de l'appli TV)
+    // FileProvider (mise à jour automatique des applis)
     implementation("androidx.core:core:1.13.1")
 }

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
@@ -52,10 +52,12 @@ class Profile {
   Profile copy() => Profile(name: name, emoji: emoji, color: color, photo: photo);
 }
 
-/// Selfie pris DANS la page. Jamais l'appli photo du téléphone : sur Android, le
-/// navigateur est souvent fermé pendant qu'elle est ouverte et la page revient vide.
+/// Sur le web : selfie pris DANS la page. Jamais l'appli photo du téléphone : sur Android,
+/// le navigateur est souvent fermé pendant qu'elle est ouverte et la page revient vide.
 /// Lève SelfieUnavailable (avec un message clair) si la caméra n'est pas utilisable.
+/// Dans l'appli Android (téléphone) : l'appareil photo d'Android, caméra de face.
 Future<Uint8List?> takeProfileSelfie(BuildContext context) async {
+  if (!kIsWeb) return pickProfilePhoto(ImageSource.camera);
   final bytes = await takeSelfie(context);
   return bytes == null ? null : squarePhoto(bytes);
 }

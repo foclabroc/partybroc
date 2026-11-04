@@ -1,0 +1,21 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- PartyBroc (téléphone) : la manette du joueur en appli native -->
+    <!-- Scanner le QR de la TV, selfie -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
+    <application>
+        <activity android:name=".MainActivity">
+            <!-- Les liens /play?code=… (QR de la TV, invitations) ouvrent l'appli au lieu du navigateur.
+                 Vérifié grâce à https://party.foclabroc.duckdns.org/.well-known/assetlinks.json -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="party.foclabroc.duckdns.org" android:pathPrefix="/play"/>
+            </intent-filter>
+            <!-- Flutter transmet le lien à l'appli (main.dart : route de départ, puis didPushRouteInformation) -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="true"/>
+        </activity>
+    </application>
+</manifest>

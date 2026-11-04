@@ -69,6 +69,15 @@ function handleHttp(req, res) {
     return;
   }
 
+  // Lien site ↔ appli Android téléphone (copié par deploy.ps1) : jamais index.html à la place
+  if (url.pathname === '/.well-known/assetlinks.json') {
+    const file = path.join(path.resolve(config.webDir), '.well-known', 'assetlinks.json');
+    if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=3600' });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
+
   // Photo de profil : /a/CODE/pid/version
   const m = url.pathname.match(/^\/a\/([A-Z]{4,12})\/([0-9a-f]{8})\/\d+$/);
   if (m) {

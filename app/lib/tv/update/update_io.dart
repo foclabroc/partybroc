@@ -3,11 +3,16 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// Où l'appli TV va chercher ses mises à jour : la release « tv-latest » du dépôt,
-/// remplie automatiquement par GitHub (apk.yml) à chaque nouvelle version.
+/// Où les applis Android vont chercher leurs mises à jour : la release « tv-latest » du
+/// dépôt, remplie automatiquement par GitHub (apk.yml) à chaque nouvelle version.
+/// PartyBroc TV : partybroc-tv.apk + tv-version.json ; PartyBroc (téléphone) :
+/// partybroc.apk + phone-version.json.
 const _base = String.fromEnvironment('PB_UPDATE_BASE',
     defaultValue: 'https://github.com/foclabroc/partybroc/releases/download/tv-latest');
 const _channel = MethodChannel('partybroc/update');
+final _phone = appFlavor == 'phone';
+final _apk = _phone ? 'partybroc.apk' : 'partybroc-tv.apk';
+final _json = _phone ? 'phone-version.json' : 'tv-version.json';
 
 class TvUpdate {
   TvUpdate(this.versionCode, this.versionName, this.notes);
@@ -31,7 +36,7 @@ Future<TvUpdate?> checkTvUpdate() async {
   try {
     final info = await _info();
     final local = (info['versionCode'] as num).toInt();
-    final req = await client.getUrl(Uri.parse('$_base/tv-version.json?t=${DateTime.now().millisecondsSinceEpoch}'));
+    final req = await client.getUrl(Uri.parse('$_base/$_json?t=${DateTime.now().millisecondsSinceEpoch}'));
     final res = await req.close();
     if (res.statusCode != 200) return null;
     final j = jsonDecode(await res.transform(utf8.decoder).join()) as Map<String, dynamic>;
@@ -51,10 +56,10 @@ Future<void> installTvUpdate(TvUpdate u, void Function(double progress) onProgre
   if (info['canInstall'] != true) throw NeedInstallPermission();
   final dir = Directory('${info['cacheDir']}/update');
   await dir.create(recursive: true);
-  final file = File('${dir.path}/partybroc-tv-${u.versionCode}.apk');
+  final file = File('${dir.path}/${_apk.replaceAll('.apk', '')}-${u.versionCode}.apk');
   final client = _client();
   try {
-    final res = await (await client.getUrl(Uri.parse('$_base/partybroc-tv.apk'))).close();
+    final res = await (await client.getUrl(Uri.parse('$_base/$_apk'))).close();
     if (res.statusCode != 200) throw HttpException('Téléchargement impossible (${res.statusCode})');
     final total = res.contentLength;
     var got = 0;

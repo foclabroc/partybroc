@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../net.dart';
 import '../../theme.dart';
-import 'share_stub.dart' if (dart.library.js_interop) 'share_web.dart';
+import 'share_stub.dart' if (dart.library.js_interop) 'share_web.dart' if (dart.library.io) 'share_io.dart';
 
 /// Bouton « Inviter des joueurs » : envoie le lien du salon par SMS, Messenger,
 /// WhatsApp… (menu de partage du téléphone), ou par nos boutons s'il n'existe pas.
