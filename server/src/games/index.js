@@ -19,6 +19,7 @@ import { ExpressionsGame, EXP } from './expressions.js';
 import { PiocheGame, PCH } from './pioche.js';
 import { OieGame } from './oie.js';
 import { SerpentsGame, SNK } from './serpents.js';
+import { YamsGame, YMS } from './yams.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -81,6 +82,9 @@ export const GAMES = [
   { id: 'serpents',  title: 'Serpents et échelles', emoji: '🐍', min: 2, cat: 'societe', ready: true, impl: SerpentsGame,
     pitch: 'Grimpe aux échelles, évite les serpents, premier sur la 100 !',
     options: { arrivee: { label: 'Arrivée', values: SNK.ends, def: SNK.defaultEnd } } },
+  { id: 'yams',      title: 'Yams',             emoji: '🎲', min: 1, cat: 'societe', ready: true, impl: YamsGame,
+    pitch: '5 dés, 3 lancers, 13 cases à remplir : vise le Yams !',
+    options: { temps: { label: 'Secondes par tour', values: YMS.times, def: YMS.defaultTime } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {

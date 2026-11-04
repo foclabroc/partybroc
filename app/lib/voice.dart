@@ -219,6 +219,13 @@ class VoiceDirector {
           final c = (live['correct'] as num?)?.toInt();
           return c != null && c < a.length ? 'C’était : ${a[c]}' : null;
         }
+      case 'yams':
+        final e = live['event'];
+        if (phase == 'turn') {
+          final who = name(live['current']);
+          return who.isEmpty ? null : 'À toi, $who !';
+        }
+        if (phase == 'scored' && e is Map && e['k'] == 'yams' && (e['v'] as num? ?? 0) > 0) return 'Yams ! Bravo ${name(e['pid'])} !';
       case 'loto':
         if (phase == 'choose') return 'Choisissez vos cartons sur votre téléphone !';
         if (phase == 'check') return 'On vérifie !';

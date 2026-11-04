@@ -13,7 +13,7 @@ class Sfx {
   Sfx._();
   static final instance = Sfx._();
 
-  static const names = ['pop', 'tick', 'whoosh', 'ding', 'buzz', 'fanfare', 'boom', 'applause'];
+  static const names = ['pop', 'tick', 'whoosh', 'ding', 'buzz', 'fanfare', 'boom', 'applause', 'des'];
   static const volume = 0.8;
 
   // Quelques lecteurs en tourniquet : deux sons peuvent se chevaucher (feu d'artifice…)
@@ -72,6 +72,7 @@ class SfxDirector {
   int _players = -1;
   final _ticks = <Timer>[];
   Timer? _show;
+  int? _ymsRoll;
 
   static const _askPhases = {'question', 'ask', 'vote', 'write', 'draw', 'go'};
 
@@ -81,6 +82,11 @@ class SfxDirector {
     // Un joueur de plus au salon
     if (live == null && _players >= 0 && players > _players) Sfx.instance.play('pop');
     _players = players;
+
+    // Yams : bruit des dés à chaque lancer
+    final roll = live?['id'] == 'yams' ? (live!['rollSeq'] as num?)?.toInt() : null;
+    if (roll != null && _ymsRoll != null && roll > _ymsRoll!) Sfx.instance.play('des');
+    _ymsRoll = roll;
 
     final phase = live?['phase'] as String?;
     final key = live == null ? null : '${live['id']}-${live['index'] ?? live['turn'] ?? ''}-$phase';

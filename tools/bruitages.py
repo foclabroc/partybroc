@@ -145,6 +145,33 @@ def applause():
     return out * shape
 
 
+
+def des():
+    """Yams : les dés secoués puis lâchés sur la piste en bois (5 dés, chacun rebondit 3-4 fois)"""
+    x = t(1.25)
+    out = np.zeros(len(x))
+
+    def clack(at, vol, freq):
+        ln = int(SR * 0.025)
+        i = int(at * SR)
+        if i + ln >= len(out):
+            return
+        n = rng.standard_normal(ln)
+        hp = n - lowpass(n, freq * 0.6)          # bruit sec, sans les graves
+        body = np.sin(2 * np.pi * freq * np.arange(ln) / SR)  # le bois qui sonne un peu
+        out[i:i + ln] += (hp + 0.5 * body) * np.exp(-np.arange(ln) / (SR * 0.004)) * vol
+
+    for k in range(7):                       # secoués
+        clack(k * 0.04, 0.18, rng.uniform(2500, 4000))
+    for d in range(5):                       # lâchés : rebonds de plus en plus proches et faibles
+        at, gap, vol = 0.36 + d * 0.07 + rng.uniform(0, 0.03), rng.uniform(0.09, 0.13), rng.uniform(0.7, 1)
+        for b in range(4):
+            clack(at, vol, rng.uniform(1400, 2600))
+            at += gap
+            gap *= 0.62
+            vol *= 0.5
+    return out
+
 if __name__ == '__main__':
     print('Bruitages →', OUT)
     save('pop', pop(), 0.7)
@@ -155,3 +182,4 @@ if __name__ == '__main__':
     save('fanfare', fanfare(), 0.8)
     save('boom', boom(), 0.85)
     save('applause', applause(), 0.6)
+    save('des', des())
