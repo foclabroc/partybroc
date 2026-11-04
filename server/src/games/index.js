@@ -16,6 +16,7 @@ import { SurvieGame, SURV } from './survie.js';
 import { PhotoRouletteGame, PHR } from './photoroulette.js';
 import { RebusGame, RBS } from './rebus.js';
 import { ExpressionsGame, EXP } from './expressions.js';
+import { PiocheGame, PCH } from './pioche.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, ready: true, impl: DessinGame,
@@ -69,6 +70,9 @@ export const GAMES = [
   { id: 'expressions', title: 'Expressions à trous', emoji: '🗣️', min: 1, ready: true, impl: ExpressionsGame,
     pitch: 'Avoir un poil dans la… ? Trouve le mot qui manque !',
     options: { rounds: { label: 'Expressions', values: EXP.rounds, def: EXP.defaultRounds } } },
+  { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, ready: true, impl: PiocheGame,
+    pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',
+    options: { cards: { label: 'Cartes en main', values: PCH.hands, def: PCH.defaultHand } } },
 ];
 
 export const gameById = (id) => GAMES.find((g) => g.id === id) || null;

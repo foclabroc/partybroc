@@ -10,6 +10,7 @@ import 'memoire_ui.dart';
 import 'preferences_ui.dart';
 import 'quiadit_ui.dart';
 import 'photoroulette_ui.dart';
+import 'pioche_ui.dart';
 import 'survie_ui.dart';
 import 'zoom_ui.dart';
 import 'droles_ui.dart';
@@ -38,6 +39,7 @@ Widget tvGameView(RoomView room) {
     'survie' => SurvTv(room: room, live: live),
     'rebus' => RbsTv(room: room, live: live),
     'expressions' => ExpTv(room: room, live: live),
+    'pioche' => PchTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }

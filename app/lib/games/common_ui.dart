@@ -496,12 +496,13 @@ class PhoneHostBar extends StatelessWidget {
 
 /// Squelette d'un écran de jeu côté téléphone : contenu + barre de l'hôte
 class PhoneGameFrame extends StatelessWidget {
-  const PhoneGameFrame({super.key, required this.stepKey, required this.child, required this.isHost, required this.phase, required this.send});
+  const PhoneGameFrame({super.key, required this.stepKey, required this.child, required this.isHost, required this.phase, required this.send, this.skipLabel = 'Suivant'});
   final String stepKey;
   final Widget child;
   final bool isHost;
   final String phase;
   final void Function(Map<String, dynamic>) send;
+  final String skipLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -512,7 +513,7 @@ class PhoneGameFrame extends StatelessWidget {
           child: KeyedSubtree(key: ValueKey(stepKey), child: child),
         ),
       ),
-      if (isHost) PhoneHostBar(phase: phase, send: send),
+      if (isHost) PhoneHostBar(phase: phase, send: send, skipLabel: skipLabel),
     ]);
   }
 }
