@@ -17,6 +17,7 @@ import { PhotoRouletteGame, PHR } from './photoroulette.js';
 import { RebusGame, RBS } from './rebus.js';
 import { ExpressionsGame, EXP } from './expressions.js';
 import { PiocheGame, PCH } from './pioche.js';
+import { OieGame } from './oie.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -73,7 +74,7 @@ export const GAMES = [
   { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, cat: 'societe', ready: true, impl: PiocheGame,
     pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',
     options: { cards: { label: 'Cartes en main', values: PCH.hands, def: PCH.defaultHand } } },
-  { id: 'oie',       title: 'Jeu de l’oie',     emoji: '🎲', min: 2, cat: 'societe', ready: false,
+  { id: 'oie',       title: 'Jeu de l’oie',     emoji: '🎲', min: 2, cat: 'societe', ready: true, impl: OieGame,
     pitch: 'Lance les dés, avance sur le plateau, gare au puits !' },
 ];
 
