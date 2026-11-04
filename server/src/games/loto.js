@@ -2,8 +2,10 @@
 // Carton français : 3 lignes × 9 colonnes, 15 numéros, 5 par ligne ; colonne 1 : 1-9,
 // colonne 2 : 10-19 … colonne 9 : 80-90 ; les cases vides sont vertes.
 // Les cartons forment une série fixe de 300 (le n° 17 est toujours le même carton, « 017/300»).
-// Au début, chacun choisit son ou ses cartons parmi au moins 20 cartons tirés de la série
-// (pas deux joueurs sur le même carton ; à la fin du temps, ceux qui manquent sont donnés au hasard).
+// Au début, chaque joueur reçoit SA liste de 20 cartons de la série (jamais les mêmes que ceux
+// d'un autre : 15 joueurs × 20 = les 300), il en coche 1 ou 2 puis touche « Commencer ».
+// Tout le monde prêt = première boule ; à la fin du temps, ceux qui n'ont pas fini reçoivent
+// les premiers cartons de leur liste.
 // On joue « Une ligne », puis « Deux lignes », puis « Carton plein ».
 // Marquage « À la main » : on touche ses numéros et on annonce soi-même (le serveur vérifie avec
 // les boules tirées ; faux = 5 s sans pouvoir réannoncer). « Automatique » : tout est marqué et
@@ -19,9 +21,9 @@ export const LOTO = fastTimings({
   defaultSpeed: 'Normale',
   marks: ['À la main', 'Automatique'],
   defaultMarks: 'À la main',
-  pool: 20,               // cartons proposés au choix (plus s'il y a beaucoup de joueurs)
+  pool: 20,               // cartons proposés à chaque joueur
   introMs: 6000,
-  chooseMs: 45000,        // temps pour choisir ses cartons
+  chooseMs: 90000,        // temps pour choisir ses cartons
   readyMs: 2500,          // tout le monde a choisi : petite pause avant la 1re boule
   winMs: 6000,            // pause sur le gain (les autres gagnants de la même boule y entrent aussi)
   lockMs: 5000,           // fausse annonce
@@ -145,17 +147,13 @@ export class LotoGame extends BaseGame {
     this.bag = shuffle(Array.from({ length: 90 }, (_, i) => i + 1));
     this.drawn = [];
     this.drawnSet = new Set();
-    // Cartons proposés : au moins 20, et toujours 5 de plus que ce qu'il faut
-    const need = this.active().length * this.perPlayer;
-    const size = Math.min(SERIES, Math.max(LOTO.pool, need + 5));
-    this.pool = shuffle(Array.from({ length: SERIES }, (_, i) => i + 1)).slice(0, size).sort((a, b) => a - b);
-    this.taken = new Map();   // n° de carton -> pid
-    this.mine = new Map();    // pid -> [n° de carton]
+    // Chaque joueur a sa liste de 20 cartons, différente de celle des autres
+    this.left = shuffle(Array.from({ length: SERIES }, (_, i) => i + 1));
+    this.pools = new Map();   // pid -> [n° de carton proposés]
+    this.mine = new Map();    // pid -> [n° de carton choisis]
+    this.ready = new Set();   // ont touché « Commencer »
     this.marks = new Map();
-    for (const p of this.active()) {
-      this.mine.set(p.pid, []);
-      this.marks.set(p.pid, new Set());
-    }
+    for (const p of this.active()) this.join(p.pid);
     this.stage = 0;            // prix en jeu : PRIZES[stage]
     this.winners = [];         // { prize, title, pids, at }
     this.lock = new Map();     // pid -> fin du blocage (fausse annonce)
@@ -164,6 +162,16 @@ export class LotoGame extends BaseGame {
   }
 
   get prize() { return PRIZES[this.stage] ?? null; }
+
+  // Un joueur entre dans la partie : sa liste de cartons
+  join(pid) {
+    if (this.pools.has(pid)) return true;
+    if (this.left.length < this.perPlayer) return false;
+    this.pools.set(pid, this.left.splice(0, LOTO.pool).sort((a, b) => a - b));
+    this.mine.set(pid, []);
+    this.marks.set(pid, new Set());
+    return true;
+  }
   grids(pid) { return (this.mine.get(pid) ?? []).map(cartonOf); }
   playing() { return [...this.mine.keys()].filter((pid) => this.room.players.has(pid) && this.mine.get(pid).length); }
 
@@ -182,50 +190,40 @@ export class LotoGame extends BaseGame {
     this.changed();
   }
 
+  // Cocher / décocher un carton de sa liste ; un de trop = le plus ancien est décoché
   pick(p, no) {
-    if (this.phase !== 'choose' || !Number.isInteger(no) || !this.pool.includes(no)) return;
-    let mine = this.mine.get(p.pid);
-    if (!mine) {
-      // arrivé pendant le choix : il joue aussi
-      mine = [];
-      this.mine.set(p.pid, mine);
-      this.marks.set(p.pid, new Set());
-    }
-    const owner = this.taken.get(no);
-    if (owner === p.pid) {
-      // le rendre
-      this.taken.delete(no);
-      mine.splice(mine.indexOf(no), 1);
-    } else if (owner) {
-      return;
-    } else {
-      // déjà assez de cartons : on échange le plus ancien
-      if (mine.length >= this.perPlayer) this.taken.delete(mine.shift());
+    if (this.phase !== 'choose' || !Number.isInteger(no)) return;
+    if (!this.join(p.pid)) return;
+    if (!this.pools.get(p.pid).includes(no)) return;
+    const mine = this.mine.get(p.pid);
+    const i = mine.indexOf(no);
+    if (i >= 0) mine.splice(i, 1);
+    else {
+      if (mine.length >= this.perPlayer) mine.shift();
       mine.push(no);
-      this.taken.set(no, p.pid);
     }
+    this.ready.delete(p.pid);
     this.changed();
-    // Tout le monde a ses cartons : on commence
-    const all = this.active().every((pl) => (this.mine.get(pl.pid)?.length ?? 0) >= this.perPlayer);
-    if (all) this.schedule(LOTO.readyMs, () => this.chosen());
-    else this.schedule(Math.max(0, this.chooseEnd - Date.now()), () => this.chosen());
   }
 
-  // Fin du choix : ceux qui n'ont pas fini reçoivent des cartons libres au hasard
+  // « Commencer » : prêt quand on a coché assez de cartons
+  setReady(p) {
+    if (this.phase !== 'choose' || (this.mine.get(p.pid)?.length ?? 0) !== this.perPlayer) return;
+    this.ready.add(p.pid);
+    this.changed();
+    const all = this.active().every((pl) => this.ready.has(pl.pid) || !this.pools.has(pl.pid));
+    if (all) this.schedule(LOTO.readyMs, () => this.chosen());
+  }
+
+  // Fin du choix : ceux qui n'ont pas fini reçoivent les premiers cartons de leur liste
   chosen() {
     if (this.phase !== 'choose') return;
-    const free = shuffle(this.pool.filter((no) => !this.taken.has(no)));
     for (const p of this.active()) {
-      let mine = this.mine.get(p.pid);
-      if (!mine) {
-        mine = [];
-        this.mine.set(p.pid, mine);
-        this.marks.set(p.pid, new Set());
-      }
-      while (mine.length < this.perPlayer && free.length) {
-        const no = free.pop();
-        mine.push(no);
-        this.taken.set(no, p.pid);
+      if (!this.join(p.pid)) continue;
+      const mine = this.mine.get(p.pid);
+      for (const no of this.pools.get(p.pid)) {
+        if (mine.length >= this.perPlayer) break;
+        if (!mine.includes(no)) mine.push(no);
       }
     }
     this.draw();
@@ -313,6 +311,7 @@ export class LotoGame extends BaseGame {
 
   onMessage(p, m) {
     if (m.t === 'loto_pick') return this.pick(p, m.no);
+    if (m.t === 'loto_ready') return this.setReady(p);
     if (m.t === 'loto_claim') return this.claim(p);
     if (m.t === 'loto_mark') {
       const marks = this.marks.get(p.pid);
@@ -361,10 +360,9 @@ export class LotoGame extends BaseGame {
       near: near.slice(0, 6),
       event: this.event,
     };
-    // Pendant le choix : les cartons proposés (pas secrets : personne ne les a encore)
+    // Pendant le choix : où en est chacun
     if (this.phase === 'choose' || this.phase === 'intro') {
-      s.pool = this.pool.map((no) => ({ no, grid: cartonOf(no), by: this.taken.get(no) ?? null }));
-      s.picked = [...this.mine].map(([pid, nos]) => ({ pid, n: nos.length }));
+      s.picked = [...this.mine].map(([pid, nos]) => ({ pid, n: nos.length, ready: this.ready.has(pid) }));
     }
     return s;
   }
@@ -373,6 +371,9 @@ export class LotoGame extends BaseGame {
     const r = this.ranking().find((x) => x.pid === pid);
     return {
       cards: (this.mine.get(pid) ?? []).map((no) => ({ no, grid: cartonOf(no) })),
+      // Pendant le choix : sa liste de 20 cartons
+      pool: this.phase === 'choose' || this.phase === 'intro' ? (this.pools.get(pid) ?? []).map((no) => ({ no, grid: cartonOf(no) })) : undefined,
+      ready: this.ready.has(pid),
       marks: [...(this.marks.get(pid) ?? [])],
       lockedFor: Math.max(0, (this.lock.get(pid) || 0) - Date.now()),
       score: r?.score ?? 0,

@@ -33,25 +33,28 @@ try {
   step('Série de 300 cartons tous différents : 15 numéros, 5 par ligne, colonnes 1-9 … 80-90');
 
   {
-    const g = offline(['a', 'b'], { cartons: 2 });
+    const names = Array.from({ length: 15 }, (_, i) => 'p' + i);
+    const g = offline(names, { cartons: 2 });
     g.phase = 'choose';
-    assert.ok(g.pool.length >= 20);
-    const [x, y, z] = g.pool;
-    g.pick(g.room.players.get('a'), x);
-    g.pick(g.room.players.get('b'), x);
-    assert.deepEqual(g.mine.get('b'), [], 'pas deux joueurs sur le même carton');
-    g.pick(g.room.players.get('a'), y);
-    g.pick(g.room.players.get('a'), z);
-    assert.deepEqual(g.mine.get('a'), [y, z], '3e choix : le plus ancien est rendu');
-    assert.equal(g.taken.has(x), false);
-    g.pick(g.room.players.get('a'), z);
-    assert.deepEqual(g.mine.get('a'), [y], 'toucher son carton le rend');
+    const all = names.flatMap((pid) => g.pools.get(pid));
+    assert.equal(all.length, 300);
+    assert.equal(new Set(all).size, 300, '15 joueurs × 20 cartons, aucun en commun');
+    const [x, y, z] = g.pools.get('p0');
+    const a = g.room.players.get('p0');
+    g.pick(a, g.pools.get('p1')[0]);
+    assert.deepEqual(g.mine.get('p0'), [], 'pas le carton d’un autre');
+    g.pick(a, x); g.pick(a, y); g.pick(a, z);
+    assert.deepEqual(g.mine.get('p0'), [y, z], '3e coché : le plus ancien est décoché');
+    g.pick(a, z);
+    assert.deepEqual(g.mine.get('p0'), [y], 'décocher');
+    g.setReady(a);
+    assert.equal(g.ready.has('p0'), false, '« Commencer » seulement avec 2 cartons');
+    g.pick(a, x);
+    g.setReady(a);
+    assert.equal(g.ready.has('p0'), true);
     g.chosen();
-    assert.equal(g.mine.get('a').length, 2);
-    assert.equal(g.mine.get('b').length, 2);
-    const all = [...g.mine.get('a'), ...g.mine.get('b')];
-    assert.equal(new Set(all).size, 4, 'complétés au hasard sans doublon');
-    step('Choix parmi les cartons proposés : pas de doublon, échange, rendu, complété à la fin');
+    for (const pid of names) assert.equal(g.mine.get(pid).length, 2);
+    step('Liste de 20 cartons par joueur sans doublon, cocher / décocher, « Commencer » à 2 cartons, complété à la fin');
   }
 
   {
@@ -91,8 +94,7 @@ try {
   await new Promise((r) => setTimeout(r, 100));
   cl[0].send({ t: 'start_game' });
   const ch = await tv.room((r) => r.game?.id === 'loto' && r.game.phase === 'choose', 5000);
-  assert.ok(ch.room.game.pool.length >= 20);
-  cl[0].send({ t: 'game_msg', m: { t: 'loto_pick', no: ch.room.game.pool[0].no } });
+  assert.equal(JSON.stringify(ch.room).includes('"pool"'), false, 'les listes de cartons ne vont pas à la TV');
   const fin = await tv.room((r) => r.game?.id === 'loto' && r.game.phase === 'podium', 60000);
   const w = fin.room.game.winners;
   assert.deepEqual(w.map((x) => x.prize), ['ligne', 'deux', 'plein']);

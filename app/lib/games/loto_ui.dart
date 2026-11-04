@@ -279,62 +279,55 @@ class LotoTv extends StatelessWidget {
     ]);
   }
 
-  // Le choix des cartons : chacun choisit sur son téléphone, la TV montre qui a fini
+  // Le choix des cartons : chacun coche les siens sur son téléphone, la TV montre qui est prêt
   Widget _choose() {
-    final pool = [for (final c in (live['pool'] as List? ?? const [])) c as Map];
-    final picked = {for (final p in (live['picked'] as List? ?? const [])) (p as Map)['pid'] as String: (p['n'] as num).toInt()};
+    final picked = {for (final p in (live['picked'] as List? ?? const [])) (p as Map)['pid'] as String: p};
     final need = live.i('perPlayer');
-    final free = pool.where((c) => c['by'] == null).length;
+    final players = room.players.where((p) => picked.containsKey(p.pid)).toList();
+    final ready = players.where((p) => picked[p.pid]?['ready'] == true).length;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(80, 60, 80, 50),
+      padding: const EdgeInsets.fromLTRB(80, 70, 80, 60),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(need == 2 ? 'Choisissez vos 2 cartons !' : 'Choisissez votre carton !', textAlign: TextAlign.center, style: Pb.t(72, weight: 700)),
-        const SizedBox(height: 10),
-        Text('Faites défiler les cartons sur votre téléphone · $free libres sur ${pool.length}', textAlign: TextAlign.center, style: Pb.t(34, color: Pb.muted)),
-        const SizedBox(height: 26),
+        Text(need == 2 ? 'Choisissez vos 2 cartons !' : 'Choisissez votre carton !', textAlign: TextAlign.center, style: Pb.t(76, weight: 700)),
+        const SizedBox(height: 12),
+        Text('Chacun a sa liste de 20 cartons sur son téléphone · $ready / ${players.length} prêts',
+            textAlign: TextAlign.center, style: Pb.t(36, color: Pb.muted)),
+        const SizedBox(height: 28),
         TimeBar(endsIn: live.endsIn, duration: live.duration, height: 12),
-        const SizedBox(height: 40),
-        Wrap(alignment: WrapAlignment.center, spacing: 28, runSpacing: 24, children: [
-          for (final p in room.players.where((p) => picked.containsKey(p.pid) || p.connected))
-            Column(mainAxisSize: MainAxisSize.min, children: [
-              Stack(clipBehavior: Clip.none, children: [
-                PbAvatar(size: 120, emoji: p.emoji, color: p.color, photoPath: p.photo),
-                Positioned(
-                  right: -8,
-                  bottom: -6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(color: (picked[p.pid] ?? 0) >= need ? Pb.green : Pb.card, borderRadius: BorderRadius.circular(20)),
-                    child: Text('${picked[p.pid] ?? 0}/$need', style: Pb.t(26, weight: 700, color: (picked[p.pid] ?? 0) >= need ? Pb.bg : Pb.text)),
+        const Spacer(),
+        Wrap(alignment: WrapAlignment.center, spacing: 40, runSpacing: 34, children: [
+          for (final p in players)
+            Builder(builder: (_) {
+              final n = (picked[p.pid]?['n'] as num?)?.toInt() ?? 0;
+              final ok = picked[p.pid]?['ready'] == true;
+              return Column(mainAxisSize: MainAxisSize.min, children: [
+                Stack(clipBehavior: Clip.none, children: [
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 250),
+                    opacity: ok ? 1 : .55,
+                    child: PbAvatar(size: 150, emoji: p.emoji, color: p.color, photoPath: p.photo),
                   ),
-                ),
-              ]),
-              const SizedBox(height: 10),
-              Text(p.name, style: Pb.t(30, weight: 600)),
-            ]),
+                  Positioned(
+                    right: -10,
+                    bottom: -8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                      decoration: BoxDecoration(color: ok ? Pb.green : Pb.card, borderRadius: BorderRadius.circular(22)),
+                      child: ok
+                          ? Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.check_rounded, color: Pb.bg, size: 30),
+                              Text('Prêt', style: Pb.t(28, weight: 700, color: Pb.bg)),
+                            ])
+                          : Text('$n/$need', style: Pb.t(28, weight: 700, color: Pb.text)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                Text(p.name, style: Pb.t(34, weight: 600)),
+              ]);
+            }),
         ]),
         const Spacer(),
-        // Les numéros de cartons proposés : pris (avec la photo) ou libres
-        Wrap(alignment: WrapAlignment.center, spacing: 12, runSpacing: 12, children: [
-          for (final c in pool)
-            Container(
-              width: 120,
-              height: 60,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: c['by'] == null ? Colors.white : Pb.card,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _red, width: 3),
-              ),
-              child: c['by'] != null && room.player(c['by'] as String) != null
-                  ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      PbAvatar(size: 38, emoji: room.player(c['by'] as String)!.emoji, color: room.player(c['by'] as String)!.color, photoPath: room.player(c['by'] as String)!.photo),
-                      const SizedBox(width: 6),
-                      Text((c['no'] as num).toInt().toString().padLeft(3, '0'), style: Pb.t(22, weight: 700, color: Pb.muted)),
-                    ])
-                  : Text('N° ${(c['no'] as num).toInt().toString().padLeft(3, '0')}', style: Pb.t(26, weight: 700, color: _red)),
-            ),
-        ]),
       ]),
     );
   }
@@ -409,7 +402,7 @@ class _LotoPlayState extends State<LotoPlay> {
       'podium' => phoneRank(widget.you),
       _ => _game(),
     };
-    return PhoneGameFrame(stepKey: ph == 'podium' || ph == 'intro' || ph == 'choose' ? ph : 'game', skipLabel: ph == 'choose' ? 'Commencer' : 'Suivant', isHost: widget.isHost, phase: ph, send: widget.send, child: body);
+    return PhoneGameFrame(stepKey: ph == 'podium' || ph == 'intro' || ph == 'choose' ? ph : 'game', skipLabel: ph == 'choose' ? 'Lancer sans attendre' : 'Boule suivante', isHost: widget.isHost, phase: ph, send: widget.send, child: body);
   }
 
   Widget _cartons({required bool interactive}) {
@@ -440,113 +433,88 @@ class _LotoPlayState extends State<LotoPlay> {
     });
   }
 
-  // Choisir son ou ses cartons : ils défilent (glisser), un appui pour prendre ou rendre
-  final _pages = PageController(viewportFraction: .9);
-  int _page = 0;
-
-  @override
-  void dispose() {
-    _pages.dispose();
-    super.dispose();
-  }
-
+  // Choisir son ou ses cartons : sa liste de 20 défile de haut en bas, on coche, puis « Commencer »
   Widget _choose() {
     final live = widget.live;
-    final pool = [for (final c in (live['pool'] as List? ?? const [])) c as Map];
+    final pool = [for (final c in (widget.you?['pool'] as List? ?? const [])) (no: ((c as Map)['no'] as num).toInt(), grid: _grid(c['grid']))];
     final need = live.i('perPlayer');
-    final mine = [for (final c in pool) if (c['by'] == widget.myPid) (c['no'] as num).toInt()];
-    if (pool.isEmpty) return const SizedBox.shrink();
-    final cur = pool[_page.clamp(0, pool.length - 1)];
-    final no = (cur['no'] as num).toInt();
-    final by = cur['by'] as String?;
-    final owner = by == null ? null : widget.room.player(by);
+    final mine = [for (final c in (widget.you?['cards'] as List? ?? const [])) ((c as Map)['no'] as num).toInt()];
+    final ready = widget.you.yb('ready');
+    final enough = mine.length == need;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 44, 0, 10),
+      padding: const EdgeInsets.fromLTRB(14, 44, 14, 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(need == 2 ? 'Choisis tes 2 cartons' : 'Choisis ton carton', style: Pb.t(26, weight: 700, color: Pb.yellow)),
-            Text('Glisse pour voir les ${pool.length} cartons · ${mine.length}/$need choisi${need > 1 ? 's' : ''}', style: Pb.t(15, color: Pb.muted)),
-            const SizedBox(height: 8),
-            TimeBar(endsIn: live.endsIn, duration: live.duration, height: 5),
-          ]),
+          padding: const EdgeInsets.only(right: 44),
+          child: Text(need == 2 ? 'Coche tes 2 cartons' : 'Coche ton carton', style: Pb.t(26, weight: 700, color: Pb.yellow)),
         ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 250,
-          child: PageView.builder(
-            controller: _pages,
-            itemCount: pool.length,
-            onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (_, i) {
-              final c = pool[i];
-              final taken = c['by'] != null && c['by'] != widget.myPid;
-              final me = c['by'] == widget.myPid;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Center(
-                  child: Stack(alignment: Alignment.center, children: [
-                    Opacity(
-                      opacity: taken ? .35 : 1,
-                      // Mon carton : entouré de vert
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(color: me ? Pb.green : Colors.transparent, width: 4),
-                        ),
-                        child: LayoutBuilder(
-                          builder: (_, box) => LotoCarton(grid: _grid(c['grid']), no: (c['no'] as num).toInt(), series: live.i('series'), marks: const {}, width: box.maxWidth),
+        Text('${pool.length} cartons rien qu’à toi · ${mine.length}/$need coché${need > 1 ? 's' : ''}', style: Pb.t(15, color: Pb.muted)),
+        const SizedBox(height: 8),
+        TimeBar(endsIn: live.endsIn, duration: live.duration, height: 5),
+        const SizedBox(height: 10),
+        Expanded(
+          child: Builder(
+            builder: (_) => ListView.separated(
+              itemCount: pool.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (_, i) {
+                final c = pool[i];
+                final on = mine.contains(c.no);
+                return GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _g({'t': 'loto_pick', 'no': c.no});
+                  },
+                  child: Row(children: [
+                    // La case à cocher
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: on ? Pb.green : Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: on ? Pb.green : _red, width: 3),
+                      ),
+                      child: on ? const Icon(Icons.check_rounded, color: Pb.bg, size: 24) : null,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (_, b) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(26),
+                            border: Border.all(color: on ? Pb.green : Colors.transparent, width: 3),
+                          ),
+                          child: LotoCarton(grid: c.grid, no: c.no, series: live.i('series'), marks: const {}, width: b.maxWidth - 12),
                         ),
                       ),
                     ),
-                    if (me)
-                      Positioned(
-                        bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-                          decoration: BoxDecoration(color: Pb.green, borderRadius: BorderRadius.circular(12)),
-                          child: Text('À toi', style: Pb.t(15, weight: 700, color: Pb.bg)),
-                        ),
-                      ),
                   ]),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        Text('${_page + 1} / ${pool.length}', textAlign: TextAlign.center, style: Pb.t(15, color: Pb.muted)),
-        const Spacer(),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            if (mine.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text('Tes cartons : ${[for (final n in mine) 'N° ${n.toString().padLeft(3, '0')}'].join(' et ')}',
-                    textAlign: TextAlign.center, style: Pb.t(17, weight: 600, color: Pb.green)),
-              ),
-            SizedBox(
-              height: 64,
-              child: owner != null && by != widget.myPid
-                  ? FilledButton(onPressed: null, child: Text('Déjà pris par ${owner.name}', style: Pb.t(20, weight: 700)))
-                  : FilledButton(
-                      style: by == widget.myPid ? FilledButton.styleFrom(backgroundColor: Pb.card) : null,
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        _g({'t': 'loto_pick', 'no': no});
-                      },
-                      child: Text(
-                        by == widget.myPid
-                            ? 'Rendre le N° ${no.toString().padLeft(3, '0')}'
-                            : (mine.length >= need ? 'Changer pour le N° ${no.toString().padLeft(3, '0')}' : 'Je prends le N° ${no.toString().padLeft(3, '0')}'),
-                        style: Pb.t(21, weight: 700),
-                      ),
-                    ),
-            ),
-          ]),
+        SizedBox(
+          height: 64,
+          child: ready
+              ? OutlinedButton(
+                  onPressed: null,
+                  child: Text('Prêt ! On attend les autres…', style: Pb.t(20, weight: 700, color: Pb.green)),
+                )
+              : FilledButton(
+                  onPressed: enough
+                      ? () {
+                          HapticFeedback.mediumImpact();
+                          _g({'t': 'loto_ready'});
+                        }
+                      : null,
+                  child: Text(enough ? 'Commencer' : 'Coche encore ${need - mine.length} carton${need - mine.length > 1 ? 's' : ''}', style: Pb.t(22, weight: 700)),
+                ),
         ),
       ]),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../models.dart';
 import '../theme.dart';
+import 'common_ui.dart';
 import '../widgets/countdown.dart';
 import '../widgets/fireworks.dart';
 import 'quiz_state.dart';
@@ -36,14 +37,18 @@ class QuizPlay extends StatelessWidget {
       'podium' => _rankView(final_: true),
       _ => const SizedBox.shrink(),
     };
-    return Column(children: [
-      Expanded(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: KeyedSubtree(key: ValueKey('${q.stepKey}-${you?.choice}'), child: body),
+    return Stack(children: [
+      Column(children: [
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: KeyedSubtree(key: ValueKey('${q.stepKey}-${you?.choice}'), child: body),
+          ),
         ),
-      ),
-      if (isHost) _hostBar(context),
+        if (isHost) PhoneHostBar(phase: q.phase, send: send),
+      ]),
+      if (isHost && q.phase != 'podium')
+        Positioned(top: 0, right: 6, child: SafeArea(child: PhoneHostMenu(send: send, skipLabel: q.phase == 'question' ? 'Révéler' : 'Suivant'))),
     ]);
   }
 
@@ -178,49 +183,5 @@ class QuizPlay extends StatelessWidget {
         ]),
       ),
     );
-  }
-
-  // ---- commandes de l'hôte ----
-  Widget _hostBar(BuildContext context) {
-    final podium = q.phase == 'podium';
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: podium
-            ? FilledButton(onPressed: () => _game({'t': 'game_skip'}), child: const Text('Retour au salon'))
-            : Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _game({'t': 'game_skip'}),
-                    child: Text(q.phase == 'question' ? 'Révéler' : 'Suivant'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _confirmEnd(context),
-                    child: const Text('Arrêter'),
-                  ),
-                ),
-              ]),
-      ),
-    );
-  }
-
-  Future<void> _confirmEnd(BuildContext context) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Pb.bg2,
-        title: Text('Arrêter la partie ?', style: Pb.t(22, weight: 600)),
-        content: Text('On passe directement au podium.', style: Pb.t(17, color: Pb.muted)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Continuer')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Arrêter')),
-        ],
-      ),
-    );
-    if (ok == true) _game({'t': 'game_end'});
   }
 }

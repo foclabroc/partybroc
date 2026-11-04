@@ -455,40 +455,86 @@ class PhoneHostBar extends StatelessWidget {
   final void Function(Map<String, dynamic>) send;
   final String skipLabel;
 
-  void _g(Map<String, dynamic> m) => send({'t': 'game_msg', 'm': m});
-
   @override
   Widget build(BuildContext context) {
+    // Au podium : le bouton « Retour au salon » reste en grand
+    if (phase != 'podium') return const SizedBox.shrink();
     return SafeArea(
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-        child: phase == 'podium'
-            ? FilledButton(onPressed: () => _g({'t': 'game_skip'}), child: const Text('Retour au salon'))
-            : Row(children: [
-                Expanded(child: OutlinedButton(onPressed: () => _g({'t': 'game_skip'}), child: Text(skipLabel))),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: Pb.bg2,
-                          title: Text('Arrêter la partie ?', style: Pb.t(22, weight: 600)),
-                          content: Text('On passe directement au podium.', style: Pb.t(17, color: Pb.muted)),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Continuer')),
-                            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Arrêter')),
-                          ],
-                        ),
-                      );
-                      if (ok == true) _g({'t': 'game_end'});
-                    },
-                    child: const Text('Arrêter'),
-                  ),
-                ),
-              ]),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(onPressed: () => send({'t': 'game_msg', 'm': {'t': 'game_skip'}}), child: const Text('Retour au salon')),
+        ),
+      ),
+    );
+  }
+}
+
+/// Commandes de l'hôte pendant un jeu, rangées derrière un bouton « ⋯ » (en haut à droite) :
+/// passer à l'étape suivante, arrêter la partie
+class PhoneHostMenu extends StatelessWidget {
+  const PhoneHostMenu({super.key, required this.send, this.skipLabel = 'Suivant'});
+  final void Function(Map<String, dynamic>) send;
+  final String skipLabel;
+
+  void _g(Map<String, dynamic> m) => send({'t': 'game_msg', 'm': m});
+
+  Future<void> _open(BuildContext context) async {
+    final what = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Pb.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('Commandes de l’hôte', textAlign: TextAlign.center, style: Pb.t(18, weight: 700, color: Pb.muted)),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'skip'),
+              icon: const Icon(Icons.skip_next_rounded),
+              label: Text(skipLabel),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pop(ctx, 'end'),
+              icon: const Icon(Icons.stop_rounded),
+              label: const Text('Arrêter la partie'),
+            ),
+          ]),
+        ),
+      ),
+    );
+    if (what == 'skip') _g({'t': 'game_skip'});
+    if (what != 'end' || !context.mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Pb.bg2,
+        title: Text('Arrêter la partie ?', style: Pb.t(22, weight: 600)),
+        content: Text('On passe directement au podium.', style: Pb.t(17, color: Pb.muted)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Continuer')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Arrêter')),
+        ],
+      ),
+    );
+    if (ok == true) _g({'t': 'game_end'});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Pb.card.withValues(alpha: .85),
+      shape: const CircleBorder(),
+      child: IconButton(
+        tooltip: 'Commandes de l’hôte',
+        onPressed: () => _open(context),
+        constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.more_horiz_rounded, color: Pb.text, size: 22),
       ),
     );
   }
@@ -506,14 +552,18 @@ class PhoneGameFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Expanded(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: KeyedSubtree(key: ValueKey(stepKey), child: child),
+    return Stack(children: [
+      Column(children: [
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: KeyedSubtree(key: ValueKey(stepKey), child: child),
+          ),
         ),
-      ),
-      if (isHost) PhoneHostBar(phase: phase, send: send, skipLabel: skipLabel),
+        if (isHost) PhoneHostBar(phase: phase, send: send, skipLabel: skipLabel),
+      ]),
+      if (isHost && phase != 'podium')
+        Positioned(top: 0, right: 6, child: SafeArea(child: PhoneHostMenu(send: send, skipLabel: skipLabel))),
     ]);
   }
 }
