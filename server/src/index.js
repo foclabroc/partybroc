@@ -519,18 +519,22 @@ const handlers = {
 
   ping(ws) { send(ws, { t: 'pong' }); },
 
-  // « Salons disponibles » sur le téléphone : seulement les salons dont un écran est sur la
-  // même connexion internet que ce téléphone (même box, même Wi-Fi). Les salons des autres
-  // maisons ne sont jamais listés : leur code reste le seul moyen d'y entrer.
+  // « Salons disponibles » sur le téléphone :
+  //  - salons normaux : seulement si un écran est sur la même connexion internet que ce
+  //    téléphone (même box, même Wi-Fi) ; sans mot de passe, leur code est leur seule protection ;
+  //  - salons permanents ouverts (un écran ou un joueur connecté) : pour tout le monde,
+  //    le mot de passe les protège.
   rooms_nearby(ws) {
     const now = Date.now();
     if (now - (ws.nearbyAt || 0) < 1500) return;
     ws.nearbyAt = now;
     const list = [];
     for (const r of rooms.rooms.values()) {
-      if (r.closed || r.tvs.size === 0) continue;
-      if (![...r.tvs].some((tv) => tv.ip === ws.ip)) continue;
+      if (r.closed) continue;
       const players = [...r.players.values()].filter((p) => p.connected);
+      if (r.perm) {
+        if (r.tvs.size === 0 && players.length === 0) continue;
+      } else if (![...r.tvs].some((tv) => tv.ip === ws.ip)) continue;
       const host = r.players.get(r.hostPid);
       list.push({
         code: r.code,
@@ -542,7 +546,7 @@ const handlers = {
       });
     }
     list.sort((a, b) => b.players - a.players || a.code.localeCompare(b.code));
-    send(ws, { t: 'rooms_nearby', rooms: list.slice(0, 10) });
+    send(ws, { t: 'rooms_nearby', rooms: list.slice(0, 15) });
   },
 };
 

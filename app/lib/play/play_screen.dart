@@ -974,9 +974,9 @@ class _NetPill extends StatelessWidget {
   }
 }
 
-/// Formulaire : « Salons disponibles ». Les salons ouverts sur le même Wi-Fi (le serveur
-/// ne montre jamais ceux des autres maisons) et les salons permanents où ce téléphone est
-/// déjà entré. Un appui rejoint le salon.
+/// Formulaire : « Salons disponibles ». Les salons normaux ouverts sur le même Wi-Fi (le
+/// serveur ne montre jamais ceux des autres maisons), les salons permanents ouverts (protégés
+/// par leur mot de passe) et ceux où ce téléphone est déjà entré. Un appui rejoint le salon.
 class _NearbyRooms extends StatelessWidget {
   const _NearbyRooms({required this.rooms, required this.myPerm, required this.onPick});
   final List<Map<String, dynamic>>? rooms; // null = pas encore de réponse
@@ -1041,7 +1041,7 @@ class _NearbyRooms extends StatelessWidget {
         if (rooms != null && near.isEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text('Aucun salon sur ton Wi-Fi pour l’instant. Allume PartyBroc sur la TV, ou tape le code ci-dessous.',
+            child: Text('Aucun salon ouvert pour l’instant. Allume PartyBroc sur la TV, ou tape le code ci-dessous.',
                 style: Pb.t(14, color: Pb.muted)),
           ),
         for (final c in mine)
