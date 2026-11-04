@@ -80,6 +80,7 @@ export const GAMES = [
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {
+      mode: { label: 'On joue avec', values: LOTO.modes, def: LOTO.defaultMode },
       cartons: { label: 'Cartons chacun', values: LOTO.cartons, def: LOTO.defaultCartons },
       vitesse: { label: 'Vitesse', values: LOTO.speeds, def: LOTO.defaultSpeed },
       marquage: { label: 'Marquage', values: LOTO.marks, def: LOTO.defaultMarks },

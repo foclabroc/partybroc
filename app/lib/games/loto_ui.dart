@@ -311,7 +311,21 @@ class LotoTv extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ph = live.phase;
-    if (ph == 'podium') return TvPodium(room: room, live: live);
+    final paper = live['paper'] == true;
+    if (ph == 'podium') return paper ? _paperWinners() : TvPodium(room: room, live: live);
+    if (ph == 'intro' && paper) {
+      return TvIntro(
+        emoji: '🎱',
+        title: 'Loto',
+        sub: 'Sortez vos cartons et vos jetons !',
+        rules: const [
+          'La TV tire les boules de 1 à 90 : marquez vos numéros sur vos cartons.',
+          'On joue une ligne, puis deux lignes, puis le carton plein.',
+          'Vous avez gagné ? Criez-le ! L’hôte arrête le tirage et on vérifie ensemble.',
+        ],
+        live: live,
+      );
+    }
     if (ph == 'intro') {
       return TvIntro(
         emoji: '🎱',
@@ -359,7 +373,7 @@ class LotoTv extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             if (prize != null)
-              TvChip(text: 'On joue : ${prize['title']} (${prize['points']} pts)', bg: Pb.pink, size: 38),
+              TvChip(text: paper ? 'On joue : ${prize['title']}' : 'On joue : ${prize['title']} (${prize['points']} pts)', bg: Pb.pink, size: 38),
             const SizedBox(height: 22),
             // Dernières boules
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -387,10 +401,13 @@ class LotoTv extends StatelessWidget {
             const SizedBox(height: 18),
             // Qui s'approche, et les gagnants
             Wrap(spacing: 18, runSpacing: 12, children: [
-              for (final w in winners)
+              for (final w in winners) ...[
                 for (final pid in [for (final p in (w['pids'] as List)) p as String])
                   if (room.player(pid) case final p?)
                     _chip(p, '🏆 ${w['title']}', Pb.yellow),
+                for (final name in [for (final n in (w['names'] as List? ?? const [])) n as String])
+                  _nameChip(name, '🏆 ${w['title']}'),
+              ],
               for (final n in near)
                 if (room.player(n['pid'] as String) case final p?)
                   _chip(p, n['miss'] == 1 ? 'attend 1 numéro !' : 'en attend 2', n['miss'] == 1 ? Pb.red : Pb.muted),
@@ -417,8 +434,39 @@ class LotoTv extends StatelessWidget {
         ),
       ]);
     }
+    // Cartons papier : quelqu'un a crié, on vérifie avec les numéros sortis
+    if (ph == 'check') {
+      final sorted = drawn.toList()..sort();
+      return Stack(children: [
+        Opacity(opacity: .2, child: content),
+        Center(
+          child: Container(
+            width: 1600,
+            padding: const EdgeInsets.fromLTRB(50, 36, 50, 40),
+            decoration: BoxDecoration(color: Pb.bg2, borderRadius: BorderRadius.circular(40), border: Border.all(color: Pb.yellow, width: 6)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('📢 ${prize == null ? '' : '« ${prize['title']} ! »'}  On vérifie…', style: Pb.t(70, weight: 700, color: Pb.yellow)),
+              const SizedBox(height: 10),
+              Text('Les ${sorted.length} numéros sortis :', style: Pb.t(34, color: Pb.muted)),
+              const SizedBox(height: 24),
+              Wrap(alignment: WrapAlignment.center, spacing: 14, runSpacing: 14, children: [
+                for (final n in sorted)
+                  Container(
+                    width: sorted.length > 50 ? 84 : 104,
+                    height: sorted.length > 50 ? 64 : 78,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: lotoBallColor(n), borderRadius: BorderRadius.circular(16), border: n == last ? Border.all(color: Colors.white, width: 4) : null),
+                    child: Text('$n', style: Pb.t(sorted.length > 50 ? 34 : 42, weight: 700, color: Colors.white)),
+                  ),
+              ]),
+            ]),
+          ),
+        ),
+      ]);
+    }
     if (!win) return content;
     final pids = [for (final p in (ev!['pids'] as List? ?? const [])) p as String];
+    final names = [for (final n in (ev['names'] as List? ?? const [])) n as String];
     return Stack(children: [
       Opacity(opacity: .25, child: content),
       Center(
@@ -433,12 +481,49 @@ class LotoTv extends StatelessWidget {
                   const SizedBox(height: 12),
                   Text(p.name, style: Pb.t(60, weight: 700)),
                 ]),
+            for (final n in names) Text(n, style: Pb.t(110, weight: 700)),
           ]),
         ]),
       ),
       const Positioned.fill(child: Fireworks()),
     ]);
   }
+
+  // Cartons papier : la liste des gagnants à la fin
+  Widget _paperWinners() {
+    final winners = [for (final w in (live['winners'] as List? ?? const [])) w as Map];
+    return Stack(children: [
+      Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('🏆 Les gagnants', style: Pb.t(96, weight: 700, color: Pb.yellow)),
+          const SizedBox(height: 40),
+          if (winners.isEmpty) Text('Personne cette fois !', style: Pb.t(54, color: Pb.muted)),
+          for (final w in winners)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 22),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                SizedBox(width: 520, child: Text('${w['title']}', textAlign: TextAlign.right, style: Pb.t(58, weight: 600, color: Pb.muted))),
+                const SizedBox(width: 40),
+                Text(
+                  [for (final n in (w['names'] as List? ?? const [])) n as String].isEmpty ? '?' : [for (final n in (w['names'] as List)) n as String].join(', '),
+                  style: Pb.t(72, weight: 700),
+                ),
+              ]),
+            ),
+        ]),
+      ),
+      const Positioned.fill(child: IgnorePointer(child: Fireworks())),
+    ]);
+  }
+
+  Widget _nameChip(String name, String text) => Container(
+        padding: const EdgeInsets.fromLTRB(22, 10, 22, 10),
+        decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(40)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('$name ', style: Pb.t(28, weight: 700)),
+          Text(text, style: Pb.t(28, weight: 600, color: Pb.yellow)),
+        ]),
+      );
 
   // Le choix des cartons : chacun coche les siens sur son téléphone, la TV montre qui est prêt
   Widget _choose() {
@@ -546,12 +631,22 @@ class _LotoPlayState extends State<LotoPlay> {
   }
 
   void _g(Map<String, dynamic> m) => widget.send({'t': 'game_msg', 'm': m});
+  final _winner = TextEditingController();
+
+  @override
+  void dispose() {
+    _winner.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final live = widget.live;
     final ph = live.phase;
-    final Widget body = switch (ph) {
+    final paper = live['paper'] == true;
+    final Widget body = paper
+        ? _paper()
+        : switch (ph) {
       'intro' => PhoneCenter(
           emoji: '🎱',
           title: 'Loto',
@@ -571,6 +666,89 @@ class _LotoPlayState extends State<LotoPlay> {
             ? [(label: paused ? 'Reprendre' : 'Pause', icon: paused ? Icons.play_arrow_rounded : Icons.pause_rounded, msg: const {'t': 'game_pause'})]
             : const [],
         isHost: widget.isHost, phase: ph, send: widget.send, child: body);
+  }
+
+  // Cartons papier : les joueurs suivent la TV ; l'hôte arrête le tirage pour vérifier un gagnant
+  Widget _paper() {
+    final live = widget.live;
+    final ph = live.phase;
+    final last = (live['last'] as num?)?.toInt();
+    final prize = live['prize'] as Map?;
+    if (ph == 'intro') {
+      return const PhoneCenter(emoji: '🎱', title: 'Loto', sub: 'On joue avec de vrais cartons : sortez vos jetons, la TV tire les boules.');
+    }
+    if (ph == 'podium') {
+      final winners = [for (final w in (live['winners'] as List? ?? const [])) w as Map];
+      return PhoneCenter(
+        emoji: '🏆',
+        title: 'Les gagnants',
+        sub: winners.isEmpty
+            ? 'Personne cette fois !'
+            : [for (final w in winners) '${w['title']} : ${[for (final n in (w['names'] as List? ?? const [])) n as String].join(', ')}'].join('\n'),
+      );
+    }
+    final recent = [for (final n in (live['drawn'] as List? ?? const []).reversed.skip(1).take(5)) (n as num).toInt()];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 44, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (prize != null) Padding(padding: const EdgeInsets.only(right: 44), child: Text('On joue : ${prize['title']}', style: Pb.t(22, weight: 700, color: Pb.yellow))),
+        Text('Boule ${(live['drawn'] as List? ?? const []).length} / 90 · cartons papier', style: Pb.t(15, color: Pb.muted)),
+        const Spacer(),
+        Center(child: last == null ? const SizedBox(height: 180) : LotoBall(n: last, size: 180)),
+        if (live.s('nick') != null) ...[const SizedBox(height: 8), Text('« ${live.s('nick')} »', textAlign: TextAlign.center, style: Pb.t(20, weight: 600, color: Pb.yellow))],
+        const SizedBox(height: 12),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [for (final n in recent) Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: LotoBall(n: n, size: 44))]),
+        if (live['paused'] == true) ...[
+          const SizedBox(height: 12),
+          Text('Pause', textAlign: TextAlign.center, style: Pb.t(22, weight: 700, color: Pb.yellow)),
+        ],
+        const Spacer(),
+        if (!widget.isHost)
+          Text('Marque tes numéros sur ton carton. Tu as gagné ? Crie-le, l’hôte vérifie !', textAlign: TextAlign.center, style: Pb.t(16, color: Pb.muted))
+        else if (ph == 'check') ...[
+          Text('Vérifiez le carton avec les numéros sortis sur la TV', textAlign: TextAlign.center, style: Pb.t(16, color: Pb.muted)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _winner,
+            maxLength: 24,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'Prénom du gagnant (facultatif)', counterText: ''),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 62,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Pb.green, foregroundColor: Pb.bg),
+              onPressed: () {
+                HapticFeedback.heavyImpact();
+                _g({'t': 'loto_verdict', 'ok': true, 'name': _winner.text});
+                _winner.clear();
+              },
+              child: Text('C’est gagné : ${prize?['title'] ?? ''} !', style: Pb.t(21, weight: 700, color: Pb.bg)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 54,
+            child: OutlinedButton(
+              onPressed: () => _g({'t': 'loto_verdict', 'ok': false}),
+              child: const Text('Faux, on continue'),
+            ),
+          ),
+        ] else if (ph == 'draw' && live['paused'] != true)
+          SizedBox(
+            height: 72,
+            child: FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Pb.yellow, foregroundColor: Pb.bg),
+              onPressed: () {
+                HapticFeedback.heavyImpact();
+                _g({'t': 'loto_check'});
+              },
+              child: Text('📢 Quelqu’un a crié ! Vérifier', style: Pb.t(22, weight: 700, color: Pb.bg)),
+            ),
+          ),
+      ]),
+    );
   }
 
   Widget _cartons({required bool interactive}) {

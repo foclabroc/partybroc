@@ -14,6 +14,11 @@
 // Tirage en deux temps : `rolling` = la boule qui sort du boulier (animation de la TV,
 // rollMs), puis elle rejoint `drawn` (tableau, téléphones, annonces, vérifications).
 // Pause de l'hôte (`game_pause`) : tout s'arrête, le minuteur reprend où il en était.
+// Mode « Cartons papier » : on joue avec de vrais cartons, sans téléphone. La TV tire les
+// boules, seul l'hôte agit : quand quelqu'un crie, « Vérifier » (`loto_check`) arrête le
+// tirage et la TV montre les numéros sortis ; puis `loto_verdict {ok, name}` (gagnant, avec
+// son prénom tapé par l'hôte) ou faux (le tirage reprend). Pas de points, les gagnants
+// s'affichent à la fin.
 import crypto from 'node:crypto';
 import { BaseGame, fastTimings, shuffle } from './common.js';
 
@@ -24,6 +29,8 @@ export const LOTO = fastTimings({
   defaultSpeed: 'Normale',
   marks: ['À la main', 'Automatique'],
   defaultMarks: 'À la main',
+  modes: ['Téléphones', 'Cartons papier'],
+  defaultMode: 'Téléphones',
   pool: 20,               // cartons proposés à chaque joueur
   introMs: 6000,
   chooseMs: 90000,        // temps pour choisir ses cartons
@@ -150,7 +157,8 @@ export class LotoGame extends BaseGame {
     this.perPlayer = LOTO.cartons.includes(opts.cartons) ? opts.cartons : LOTO.defaultCartons;
     this.speed = SPEED_MS[opts.vitesse] ?? SPEED_MS[LOTO.defaultSpeed];
     if (process.env.PB_FAST) this.speed = Math.round(this.speed / 10);
-    this.auto = opts.marquage === 'Automatique';
+    this.paper = opts.mode === 'Cartons papier';
+    this.auto = !this.paper && opts.marquage === 'Automatique';
     this.bag = shuffle(Array.from({ length: 90 }, (_, i) => i + 1));
     this.drawn = [];
     this.drawnSet = new Set();
@@ -177,7 +185,7 @@ export class LotoGame extends BaseGame {
   }
 
   togglePause() {
-    if (['intro', 'podium'].includes(this.phase)) return;
+    if (['intro', 'podium', 'check'].includes(this.phase)) return;
     if (!this.paused) {
       this.paused = true;
       this.pausedLeft = Math.max(0, this.deadline - Date.now());
@@ -209,7 +217,8 @@ export class LotoGame extends BaseGame {
   playing() { return [...this.mine.keys()].filter((pid) => this.room.players.has(pid) && this.mine.get(pid).length); }
 
   start() {
-    this.schedule(LOTO.introMs, () => this.choose());
+    // Cartons papier : pas de choix de cartons, on tire tout de suite après l'intro
+    this.schedule(LOTO.introMs, () => (this.paper ? this.draw() : this.choose()));
   }
 
   note(k, extra = {}) { this.event = { seq: ++this.seq, k, ...extra }; }
@@ -299,13 +308,13 @@ export class LotoGame extends BaseGame {
     return true;
   }
 
-  win(pids) {
+  win(pids, name = null) {
     const prize = this.prize;
-    const w = { prize: prize.id, title: prize.title, pids: [], at: this.drawn.length };
+    const w = { prize: prize.id, title: prize.title, pids: [], names: name ? [name] : [], at: this.drawn.length };
     this.winners.push(w);
     for (const pid of pids) this.addWinner(w, pid);
     this.phase = 'win';
-    this.note('win', { prize: prize.id, pids: w.pids });
+    this.note('win', { prize: prize.id, pids: w.pids, names: w.names });
     this.schedule(LOTO.winMs, () => this.afterWin());
     this.changed();
   }
@@ -327,8 +336,38 @@ export class LotoGame extends BaseGame {
     this.changed();
   }
 
+  // Cartons papier : quelqu'un a crié, l'hôte arrête le tirage pour vérifier
+  check() {
+    if (!this.paper || this.paused || (this.phase !== 'draw')) return;
+    if (this.rolling != null) {
+      // la boule en train de sortir compte : on la révèle d'abord
+      const n = this.rolling;
+      this.rolling = null;
+      this.drawn.push(n);
+      this.drawnSet.add(n);
+    }
+    clearTimeout(this.timer);
+    this.phase = 'check';
+    this.duration = 0;
+    this.deadline = Date.now();
+    this.note('check');
+    this.changed();
+  }
+
+  verdict(ok, name) {
+    if (!this.paper || this.phase !== 'check') return;
+    if (ok) {
+      const clean = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, 24) : '';
+      return this.win([], clean || null);
+    }
+    this.note('nope');
+    this.phase = 'draw';
+    this.schedule(LOTO.gapMs, () => this.draw());
+    this.changed();
+  }
+
   claim(p) {
-    if (this.auto || !this.grids(p.pid).length) return;
+    if (this.auto || this.paper || !this.grids(p.pid).length) return;
     if ((this.lock.get(p.pid) || 0) > Date.now()) return;
     const last = this.winners[this.winners.length - 1];
     // Pendant la pause d'un gain : un autre gagnant de la même boule partage le prix
@@ -358,6 +397,8 @@ export class LotoGame extends BaseGame {
     if (m.t === 'loto_pick') return this.pick(p, m.no);
     if (m.t === 'loto_ready') return this.setReady(p);
     if (m.t === 'game_pause' && p.pid === this.room.hostPid) return this.togglePause();
+    if (m.t === 'loto_check' && p.pid === this.room.hostPid) return this.check();
+    if (m.t === 'loto_verdict' && p.pid === this.room.hostPid) return this.verdict(m.ok === true, m.name);
     if (this.paused && m.t === 'game_skip') return; // en pause : « Suivant » ne fait rien
     if (m.t === 'loto_claim') return this.claim(p);
     if (m.t === 'loto_mark') {
@@ -371,6 +412,7 @@ export class LotoGame extends BaseGame {
       // « Suivant » : fin du choix, ou boule suivante tout de suite
       if (this.phase === 'intro') this.choose();
       else if (this.phase === 'choose') this.chosen();
+      else if (this.phase === 'check') this.verdict(false);
       else if (this.phase === 'draw') {
         if (this.rolling != null) this.reveal();
         else this.draw();
@@ -410,7 +452,8 @@ export class LotoGame extends BaseGame {
       nick: NICKNAMES[this.drawn[this.drawn.length - 1]] ?? null,
       prize: prize ? { id: prize.id, title: prize.title, points: prize.points } : null,
       auto: this.auto,
-      winners: this.winners.map((w) => ({ prize: w.prize, title: w.title, pids: w.pids })),
+      paper: this.paper,
+      winners: this.winners.map((w) => ({ prize: w.prize, title: w.title, pids: w.pids, names: w.names })),
       near: near.slice(0, 6),
       event: this.event,
     };

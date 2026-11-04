@@ -97,6 +97,25 @@ try {
     step('Tirage en deux temps (boulier puis révélée), pause et reprise');
   }
 
+  {
+    const g = offline(['a'], { mode: 'Cartons papier' });
+    g.phase = 'draw';
+    g.draw();
+    g.check();
+    assert.equal(g.phase, 'check');
+    assert.equal(g.drawn.length, 1, 'la boule qui sortait compte');
+    g.verdict(false);
+    assert.equal(g.phase, 'draw', 'faux : le tirage reprend');
+    g.check();
+    g.verdict(true, '  Mamie   Jo ');
+    assert.equal(g.phase, 'win');
+    assert.deepEqual(g.winners[0].names, ['Mamie Jo']);
+    assert.equal(g.winners[0].prize, 'ligne');
+    g.claim(g.room.players.get('a'));
+    assert.equal(g.winners.length, 1, 'pas d’annonce depuis un téléphone en cartons papier');
+    step('Cartons papier : vérifier, faux, gagnant avec son prénom');
+  }
+
   // Partie complète en marquage automatique (cartons donnés au hasard à la fin du choix)
   const tv = await client(PORT);
   tv.send({ t: 'tv_hello' });
