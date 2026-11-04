@@ -518,6 +518,32 @@ const handlers = {
   },
 
   ping(ws) { send(ws, { t: 'pong' }); },
+
+  // « Salons disponibles » sur le téléphone : seulement les salons dont un écran est sur la
+  // même connexion internet que ce téléphone (même box, même Wi-Fi). Les salons des autres
+  // maisons ne sont jamais listés : leur code reste le seul moyen d'y entrer.
+  rooms_nearby(ws) {
+    const now = Date.now();
+    if (now - (ws.nearbyAt || 0) < 1500) return;
+    ws.nearbyAt = now;
+    const list = [];
+    for (const r of rooms.rooms.values()) {
+      if (r.closed || r.tvs.size === 0) continue;
+      if (![...r.tvs].some((tv) => tv.ip === ws.ip)) continue;
+      const players = [...r.players.values()].filter((p) => p.connected);
+      const host = r.players.get(r.hostPid);
+      list.push({
+        code: r.code,
+        perm: r.perm,
+        players: players.length,
+        max: config.maxPlayers,
+        host: host && host.connected ? { name: host.name, emoji: host.emoji, color: host.color } : null,
+        playing: r.game ? (gameById(r.gameId)?.title || 'Partie') : null,
+      });
+    }
+    list.sort((a, b) => b.players - a.players || a.code.localeCompare(b.code));
+    send(ws, { t: 'rooms_nearby', rooms: list.slice(0, 10) });
+  },
 };
 
 wss.on('connection', (ws, req) => {

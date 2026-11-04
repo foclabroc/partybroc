@@ -73,6 +73,9 @@ class _PlayScreenState extends State<PlayScreen> {
   RoomView? _room;
   Map<String, dynamic>? _you; // état perso dans la partie en cours
   bool _pendingJoin = false;
+  // « Salons disponibles » (formulaire) : salons ouverts sur le même Wi-Fi, redemandés toutes les 4 s
+  List<Map<String, dynamic>>? _nearby;
+  Timer? _nearbyTimer;
 
   @override
   void initState() {
@@ -81,6 +84,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _sub = _sock.messages.listen(_onMessage);
     DrawBoard.instance.requestSync = () => _sock.send({'t': 'game_msg', 'm': {'t': 'drw_sync'}});
     _life = AppLifecycleListener(onResume: _sock.kick);
+    _nearbyTimer = Timer.periodic(const Duration(seconds: 4), (_) => _askNearby());
     _init();
   }
 
@@ -101,7 +105,12 @@ class _PlayScreenState extends State<PlayScreen> {
     _sock.connect();
   }
 
+  void _askNearby() {
+    if (_step == _Step.form) _sock.send({'t': 'rooms_nearby'});
+  }
+
   void _onOpen(PbSocket s) {
+    if (_step == _Step.form) s.send({'t': 'rooms_nearby'});
     if (_sCode != null && _sToken != null) {
       s.send({'t': 'resume', 'code': _sCode, 'token': _sToken});
     } else if (_pendingJoin) {
@@ -111,6 +120,10 @@ class _PlayScreenState extends State<PlayScreen> {
 
   static String _cleanCode(String s) => s.trim().toUpperCase().replaceAll(RegExp('[^A-Z]'), '');
   static bool _isPerm(String code) => code.length >= 5;
+
+  // Salons permanents où ce téléphone est déjà entré (jeton gardé)
+  List<String> _myPermCodes() =>
+      (_prefs?.getKeys() ?? const <String>{}).where((k) => k.startsWith('m_')).map((k) => k.substring(2)).toList()..sort();
 
   // Jeton de membre d'un salon permanent : plus besoin du mot de passe la fois suivante
   String? _mtoken(String code) => _prefs?.getString('m_$code');
@@ -142,11 +155,16 @@ class _PlayScreenState extends State<PlayScreen> {
       _step = _Step.form;
       _formError = msg;
     });
+    _askNearby();
   }
 
   void _onMessage(Map<String, dynamic> m) {
     if (LiveFeed.instance.handle(m)) return;
     switch (m['t']) {
+      case 'rooms_nearby':
+        final list = (m['rooms'] as List? ?? const []).whereType<Map<String, dynamic>>().toList();
+        if (mounted) setState(() => _nearby = list);
+        return;
       case 'perm_stats':
         _stats.value = m;
       case 'joined':
@@ -275,6 +293,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _sub?.cancel();
     _sfx.dispose();
     _life.dispose();
+    _nearbyTimer?.cancel();
     _sock.dispose();
     _code.dispose();
     _pw.dispose();
@@ -474,6 +493,14 @@ class _PlayScreenState extends State<PlayScreen> {
         const PhoneUpdateBanner(),
         const Center(child: PbLogo(size: 38)),
         const SizedBox(height: 26),
+        _NearbyRooms(
+          rooms: _nearby,
+          myPerm: _myPermCodes(),
+          onPick: (code) {
+            setState(() => _code.text = code);
+            _join();
+          },
+        ),
         Text('Code affiché sur la TV (ou nom du salon permanent)', style: Pb.t(16, weight: 600, color: Pb.muted)),
         const SizedBox(height: 8),
         TextField(
@@ -943,6 +970,83 @@ class _NetPill extends StatelessWidget {
                 child: Text('Reconnexion…', style: Pb.t(14, weight: 600)),
               ),
       ),
+    );
+  }
+}
+
+/// Formulaire : « Salons disponibles ». Les salons ouverts sur le même Wi-Fi (le serveur
+/// ne montre jamais ceux des autres maisons) et les salons permanents où ce téléphone est
+/// déjà entré. Un appui rejoint le salon.
+class _NearbyRooms extends StatelessWidget {
+  const _NearbyRooms({required this.rooms, required this.myPerm, required this.onPick});
+  final List<Map<String, dynamic>>? rooms; // null = pas encore de réponse
+  final List<String> myPerm;
+  final void Function(String code) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final near = rooms ?? const [];
+    final nearCodes = near.map((r) => r['code']).toSet();
+    final mine = myPerm.where((c) => !nearCodes.contains(c)).toList();
+    if (rooms == null && mine.isEmpty) return const SizedBox.shrink();
+
+    Widget tile({required String code, required String title, required String sub, Widget? lead, bool highlight = false}) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Material(
+            color: highlight ? Pb.cardHi : Pb.card,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onPick(code);
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(children: [
+                  if (lead != null) ...[lead, const SizedBox(width: 12)],
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(title, style: Pb.t(20, weight: 700, color: Pb.yellow).copyWith(letterSpacing: 2)),
+                      Text(sub, style: Pb.t(14, color: Pb.muted), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ]),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Pb.muted),
+                ]),
+              ),
+            ),
+          ),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('📡 Salons disponibles', style: Pb.t(18, weight: 700)),
+        const SizedBox(height: 8),
+        for (final r in near)
+          tile(
+            code: r['code'] as String,
+            highlight: true,
+            title: r['code'] as String,
+            lead: r['host'] is Map
+                ? PbAvatar(size: 40, emoji: (r['host'] as Map)['emoji'] as String? ?? '🙂', color: ((r['host'] as Map)['color'] as num?)?.toInt() ?? 0)
+                : const Text('📺', style: TextStyle(fontSize: 30)),
+            sub: [
+              if (r['perm'] == true) '🔒 permanent',
+              '${r['players']} joueur${(r['players'] as num) > 1 ? 's' : ''}',
+              if (r['host'] is Map) '👑 ${(r['host'] as Map)['name']}',
+              if (r['playing'] != null) '🎮 ${r['playing']} en cours',
+            ].join(' · '),
+          ),
+        if (rooms != null && near.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text('Aucun salon sur ton Wi-Fi pour l’instant. Allume PartyBroc sur la TV, ou tape le code ci-dessous.',
+                style: Pb.t(14, color: Pb.muted)),
+          ),
+        for (final c in mine)
+          tile(code: c, title: c, sub: '🔒 Ton salon permanent', lead: const Text('🏠', style: TextStyle(fontSize: 30))),
+      ]),
     );
   }
 }

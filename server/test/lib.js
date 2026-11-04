@@ -10,8 +10,9 @@ export async function startServer(port, env = {}) {
   return srv;
 }
 
-export async function client(port) {
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+// ip : adresse simulée (comme si Caddy l'avait mise dans X-Forwarded-For)
+export async function client(port, ip) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, ip ? { headers: { 'x-forwarded-for': ip } } : undefined);
   const inbox = [];
   const waiters = [];
   ws.on('message', (d) => {
