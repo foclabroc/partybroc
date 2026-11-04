@@ -15,6 +15,7 @@ import '../games/quiadit_ui.dart';
 import '../games/photoroulette_ui.dart';
 import '../games/loto_ui.dart';
 import '../games/oie_ui.dart';
+import '../games/serpents_ui.dart';
 import '../games/pioche_ui.dart';
 import '../games/survie_ui.dart';
 import '../games/zoom_ui.dart';
@@ -489,6 +490,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return PchPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
       case 'oie':
         return OiePlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'serpents':
+        return SnkPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'loto':
         return LotoPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
     }

@@ -18,6 +18,7 @@ import { RebusGame, RBS } from './rebus.js';
 import { ExpressionsGame, EXP } from './expressions.js';
 import { PiocheGame, PCH } from './pioche.js';
 import { OieGame } from './oie.js';
+import { SerpentsGame, SNK } from './serpents.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -77,6 +78,9 @@ export const GAMES = [
     options: { cards: { label: 'Cartes en main', values: PCH.hands, def: PCH.defaultHand } } },
   { id: 'oie',       title: 'Jeu de l’oie',     emoji: '🎲', min: 2, cat: 'societe', ready: true, impl: OieGame,
     pitch: 'Lance les dés, avance sur le plateau, gare au puits !' },
+  { id: 'serpents',  title: 'Serpents et échelles', emoji: '🐍', min: 2, cat: 'societe', ready: true, impl: SerpentsGame,
+    pitch: 'Grimpe aux échelles, évite les serpents, premier sur la 100 !',
+    options: { arrivee: { label: 'Arrivée', values: SNK.ends, def: SNK.defaultEnd } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {
