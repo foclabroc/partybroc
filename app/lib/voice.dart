@@ -219,6 +219,19 @@ class VoiceDirector {
           final c = (live['correct'] as num?)?.toInt();
           return c != null && c < a.length ? 'C’était : ${a[c]}' : null;
         }
+      case 'loto':
+        if (phase == 'draw' && live['last'] is num) {
+          final nick = s('nick');
+          return nick.isEmpty ? 'Le ${live['last']}' : 'Le ${live['last']}, $nick';
+        }
+        if (phase == 'win') {
+          final e = live['event'];
+          if (e is Map && e['k'] == 'win') {
+            final what = switch (e['prize']) { 'quine' => 'Quine', 'double' => 'Double quine', _ => 'Carton plein' };
+            final who = [for (final p in (e['pids'] as List? ?? const [])) name(p)].join(' et ');
+            return '$what pour $who !';
+          }
+        }
       case 'preferences':
         if (phase == 'fill') return 'Répondez en secret sur votre téléphone !';
         // Sans l'emoji du début (« 🔵 Bleu » → « Bleu »)

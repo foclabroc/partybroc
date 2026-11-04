@@ -18,6 +18,7 @@ import { RebusGame, RBS } from './rebus.js';
 import { ExpressionsGame, EXP } from './expressions.js';
 import { PiocheGame, PCH } from './pioche.js';
 import { OieGame } from './oie.js';
+import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -76,6 +77,13 @@ export const GAMES = [
     options: { cards: { label: 'Cartes en main', values: PCH.hands, def: PCH.defaultHand } } },
   { id: 'oie',       title: 'Jeu de l’oie',     emoji: '🎲', min: 2, cat: 'societe', ready: true, impl: OieGame,
     pitch: 'Lance les dés, avance sur le plateau, gare au puits !' },
+  { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, impl: LotoGame,
+    pitch: 'La TV tire les boules : quine, double quine, carton plein !',
+    options: {
+      cartons: { label: 'Cartons chacun', values: LOTO.cartons, def: LOTO.defaultCartons },
+      vitesse: { label: 'Vitesse', values: LOTO.speeds, def: LOTO.defaultSpeed },
+      marquage: { label: 'Marquage', values: LOTO.marks, def: LOTO.defaultMarks },
+    } },
 ];
 
 // Onglets du choix des jeux (téléphone de l'hôte et salon TV)

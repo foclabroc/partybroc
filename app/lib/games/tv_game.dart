@@ -10,6 +10,7 @@ import 'memoire_ui.dart';
 import 'preferences_ui.dart';
 import 'quiadit_ui.dart';
 import 'photoroulette_ui.dart';
+import 'loto_ui.dart';
 import 'oie_ui.dart';
 import 'pioche_ui.dart';
 import 'survie_ui.dart';
@@ -42,6 +43,7 @@ Widget tvGameView(RoomView room) {
     'expressions' => ExpTv(room: room, live: live),
     'pioche' => PchTv(room: room, live: live),
     'oie' => OieTv(room: room, live: live),
+    'loto' => LotoTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }
