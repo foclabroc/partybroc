@@ -7,7 +7,7 @@
 // « Dernière carte ! » : qui tombe à une carte sans l'avoir annoncé peut être dénoncé
 // (+2) jusqu'à ce que le joueur suivant joue.
 // Les mains ne sont JAMAIS dans publicState() (TV et tous les téléphones le reçoivent).
-import { BaseGame, fastTimings, shuffle } from './common.js';
+import { BaseGame, botMs, fastTimings, shuffle } from './common.js';
 
 export const PCH = fastTimings({
   hands: [5, 7],
@@ -171,7 +171,10 @@ export class PiocheGame extends BaseGame {
     this.exposedEnds(pid);
     this.note('play', { pid, card, color: this.color });
 
-    if (hand.length === 1 && !this.said.has(pid)) this.exposed = pid;
+    if (hand.length === 1 && !this.said.has(pid)) {
+      this.exposed = pid;
+      this.exposedN = (this.exposedN || 0) + 1;
+    }
     if (hand.length === 0) return this.finish(pid, card);
 
     if (card.v === 'rev') {
@@ -289,6 +292,53 @@ export class PiocheGame extends BaseGame {
       if (this.phase === 'intro') this.beginTurn(false);
       else if (this.phase === 'play') this.timeout(); // « Suivant » : le joueur qui traîne passe son tour
     });
+  }
+
+  // ---------------------------------------------------------------- robots
+
+  // Dénonce qui a oublié « Dernière carte ! » (Malin presque toujours et vite, Facile parfois) ;
+  // à son tour : pose une carte (Malin : la couleur qu'il a le plus, garde ses jokers, attaque
+  // le suivant s'il n'a presque plus de cartes ; Facile : au hasard), sinon pioche.
+  botAction(pid, level) {
+    if (this.phase !== 'play') return null;
+    const hand = this.hands.get(pid);
+    if (!hand) return null;
+    const malin = level === 'malin';
+    if (this.exposed && this.exposed !== pid) {
+      const go = this.botMemo(`${pid}:catch:${this.exposedN}`, () => Math.random() < (malin ? 0.85 : 0.4));
+      if (go) return { m: { t: 'pch_catch', pid: this.exposed }, ms: malin ? botMs(1200, 2500) : botMs(2500, 4500) };
+    }
+    if (this.current !== pid) return null;
+    const ms = botMs(1500, 3000);
+    const playable = hand.filter((c) => this.playable(c) && (!this.drawn || c.id === this.drawn));
+    if (!playable.length) return { m: { t: this.drawn ? 'pch_pass' : 'pch_draw' }, ms };
+    const count = { r: 0, j: 0, v: 0, b: 0 };
+    for (const c of hand) if (!isWild(c)) count[c.c]++;
+    const nextPid = this.order[(((this.turn + this.dir) % this.order.length) + this.order.length) % this.order.length];
+    const nextLow = nextPid !== pid && (this.hands.get(nextPid)?.length ?? 9) <= 2;
+    const card = this.botMemo(`${pid}:play:${hand.length}:${this.top.id}:${this.drawn}:${this.pending}`, () => {
+      if (!malin) {
+        const plain = playable.filter((c) => !isWild(c));
+        const from = plain.length && Math.random() < 0.7 ? plain : playable;
+        return from[Math.floor(Math.random() * from.length)];
+      }
+      const value = (c) => {
+        let s = isWild(c) ? (c.v === 'p4' ? -12 : -6) : 10 + count[c.c];
+        if (['skip', 'rev', 'p2'].includes(c.v)) s += nextLow ? 10 : 1;
+        if (c.v === 'p4' && nextLow) s += 14;
+        return s;
+      };
+      return playable.reduce((a, b) => (value(b) > value(a) ? b : a));
+    });
+    if (!hand.includes(card) || !playable.includes(card)) return null;
+    let color;
+    if (isWild(card)) {
+      color = COLORS.reduce((a, b) => (count[b] > count[a] ? b : a));
+      if (!count[color]) color = this.botMemo(`${pid}:color:${card.id}`, () => COLORS[Math.floor(Math.random() * 4)]);
+    }
+    // « Dernière carte ! » : Malin ne l'oublie jamais, Facile une fois sur trois
+    const last = hand.length === 2 && this.botMemo(`${pid}:last:${card.id}`, () => malin || Math.random() < 0.65);
+    return { m: { t: 'pch_play', card: card.id, color, last }, ms };
   }
 
   hostCommand(p, m, next) {

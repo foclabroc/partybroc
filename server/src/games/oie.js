@@ -7,7 +7,7 @@
 // Le premier sur la 63 gagne ; les autres sont classés selon leur case.
 import crypto from 'node:crypto';
 import { db } from '../db.js';
-import { BaseGame, fastTimings, shuffle } from './common.js';
+import { BaseGame, botMs, fastTimings, shuffle } from './common.js';
 
 export const OIE = fastTimings({
   introMs: 9000,
@@ -253,6 +253,20 @@ export class OieGame extends BaseGame {
   onPlayerGone(p) {
     if (this.phase === 'turn' && p.pid === this.current) this.schedule(OIE.goneMs, () => this.roll(p.pid, true));
     if (this.phase === 'defi' && this.defi?.pid === p.pid) this.schedule(OIE.goneMs, () => this.defiReveal());
+  }
+
+  // ---------------------------------------------------------------- robots
+
+  // Lance les dés à son tour ; case Défi : bonne réponse 70 % (Malin) ou 35 % (Facile)
+  botAction(pid, level) {
+    if (this.phase === 'turn' && this.current === pid) return { m: { t: 'oie_roll' }, ms: botMs(1400, 2600) };
+    if (this.phase === 'defi' && this.defi?.pid === pid && this.defi.answer === null) {
+      const q = this.defi.q;
+      const choice = this.botMemo(`${pid}:defi:${q.id}`, () =>
+        (Math.random() < (level === 'malin' ? 0.7 : 0.35) ? q.correct : crypto.randomInt(q.answers.length)));
+      return { m: { t: 'oie_answer', choice }, ms: botMs(3000, 7000) };
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------- état

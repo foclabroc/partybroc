@@ -15,6 +15,12 @@ export function fastTimings(obj) {
   return obj;
 }
 
+// Délai d'un coup de robot (entre a et b ms ; ÷10 avec PB_FAST)
+export function botMs(a, b = a) {
+  const ms = a + Math.random() * (b - a);
+  return Math.round(process.env.PB_FAST ? ms / 10 : ms);
+}
+
 // Texte tapé par un joueur : sans caractères invisibles, espaces normalisés, longueur max
 export function cleanText(raw, max) {
   if (typeof raw !== 'string') return '';
@@ -91,6 +97,17 @@ export class BaseGame {
   }
 
   changed() { this.hooks.changed(); }
+
+  // Décision tirée au hasard une seule fois par robot et par situation (clé),
+  // pour que le robot ne change pas d'avis entre le moment où il réfléchit et celui où il joue
+  botMemo(key, fn) {
+    this._botMemo ??= new Map();
+    if (!this._botMemo.has(key)) {
+      if (this._botMemo.size > 500) this._botMemo.clear();
+      this._botMemo.set(key, fn());
+    }
+    return this._botMemo.get(key);
+  }
 
   active() { return [...this.room.players.values()].filter((p) => p.connected); }
 

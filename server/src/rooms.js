@@ -60,6 +60,9 @@ export function decodePhoto(b64) {
   return { buf, type };
 }
 
+// Prénoms des robots (le premier libre est pris)
+const BOT_NAMES = ['Robert', 'Bobette', 'Gaston', 'Ginette', 'Marcel', 'Josette', 'Firmin', 'Lulu', 'Raymond', 'Paulette', 'Gégé', 'Mimi', 'Albert', 'Fernande'];
+
 class Player {
   constructor({ name, emoji, color, photo }, pid) {
     this.pid = pid || rid(4);       // salon permanent : identifiant du membre (stable)
@@ -74,9 +77,11 @@ class Player {
     this.ws = null;
     this.leftAt = 0;                // date de déconnexion (0 = connecté)
     this.joinedAt = Date.now();
+    this.bot = null;                // robot : 'facile' ou 'malin' (joue tout seul, côté serveur)
   }
 
-  get connected() { return this.ws !== null; }
+  // Un robot est toujours « connecté »
+  get connected() { return this.bot !== null || this.ws !== null; }
 
   publicView(code) {
     return {
@@ -88,6 +93,7 @@ class Player {
       score: this.score,
       team: this.team,
       connected: this.connected,
+      bot: this.bot,
     };
   }
 }
@@ -120,6 +126,8 @@ export class Room {
     this.chatLog = [];              // 30 derniers messages (pour qui arrive en cours)
     this.chatSeq = 0;
     this.used = {};                 // contenu déjà servi ce soir, par table (Set d'id)
+    this.bench = new Map();         // robots mis de côté pendant un jeu où ils ne jouent pas
+    this.botTimers = new Map();     // pid -> prochain coup prévu d'un robot
     // Réglages choisis par l'hôte, par jeu
     this.options = Object.fromEntries(GAMES.map((g) => [g.id,
       Object.fromEntries(Object.entries(g.options || {}).map(([k, o]) => [k, o.def]))]));
@@ -134,7 +142,7 @@ export class Room {
       hostPid: this.hostPid,
       tvConnected: this.tvs.size > 0,
       selectedGame: this.selectedGame,
-      games: GAMES.map(({ id, title, emoji, min, ready, pitch, options, cat }) => ({ id, title, emoji, min, ready, pitch, cat, options: options || {} })),
+      games: GAMES.map((g) => ({ id: g.id, title: g.title, emoji: g.emoji, min: g.min, ready: g.ready, pitch: g.pitch, cat: g.cat, options: g.options || {}, bots: this.botsPlay(g) })),
       options: this.options[this.selectedGame] || {},
       game: this.game ? this.game.publicState() : null,
       teams: this.teams.on ? this.teamsView() : null,
@@ -156,6 +164,73 @@ export class Room {
       const you = this.game ? JSON.stringify(this.game.playerState(p.pid)) : 'null';
       send(p.ws, `{"t":"room","room":${room},"you":${you}}`);
     }
+    this.botsTick();
+  }
+
+  // ---- robots ----
+  // Après chaque changement, chaque robot regarde s'il a quelque chose à faire
+  // (game.botAction) et le fait après un petit délai, pour qu'on le voie jouer.
+  botsTick() {
+    const g = this.game;
+    if (!g?.botAction || this.closed) return;
+    for (const p of this.players.values()) {
+      if (!p.bot || this.botTimers.has(p.pid)) continue;
+      let a = null;
+      try { a = g.botAction(p.pid, p.bot); } catch (e) { console.error('[robot]', e); }
+      if (!a) continue;
+      const t = setTimeout(() => {
+        this.botTimers.delete(p.pid);
+        if (this.game !== g || g.over || !this.players.has(p.pid)) return;
+        try {
+          // On redemande au moment de jouer : l'état a pu changer entre-temps
+          const b = g.botAction(p.pid, p.bot);
+          if (b) g.onMessage(p, b.m);
+        } catch (e) { console.error('[robot]', e); }
+        this.botsTick();
+      }, Math.max(20, a.ms ?? 1200));
+      this.botTimers.set(p.pid, t);
+    }
+  }
+
+  clearBots() {
+    for (const t of this.botTimers.values()) clearTimeout(t);
+    this.botTimers.clear();
+  }
+
+  addBot(level) {
+    const lvl = level === 'facile' ? 'facile' : 'malin';
+    if (this.game) throw new Error('Ajoute les robots au salon, entre deux parties');
+    if (this.players.size + this.bench.size >= config.maxPlayers) throw new Error(`Salon complet (${config.maxPlayers} joueurs max)`);
+    const name = BOT_NAMES.find((n) => !this.nameTaken(n)) ?? `Robot ${this.players.size + 1}`;
+    return this.addPlayer({ name, emoji: '🤖', color: Math.floor(Math.random() * 12), photo: null }, undefined, 0, lvl);
+  }
+
+  isBot(pid) { return !!(this.players.get(pid)?.bot || this.bench.get(pid)); }
+
+  // Robots qui jouent à ce jeu (avec ces réglages) ?
+  botsPlay(g) {
+    if (!g?.bots) return false;
+    return typeof g.bots === 'function' ? !!g.bots(this.options[g.id] || {}) : true;
+  }
+
+  // Joueurs pour un jeu : les humains connectés, plus les robots s'ils y jouent
+  playersFor(g) {
+    let n = 0;
+    for (const p of this.players.values()) if (p.connected && (!p.bot || this.botsPlay(g))) n++;
+    return n;
+  }
+
+  benchBots() {
+    for (const p of [...this.players.values()]) {
+      if (!p.bot) continue;
+      this.bench.set(p.pid, p);
+      this.players.delete(p.pid);
+    }
+  }
+
+  unbenchBots() {
+    for (const [pid, p] of this.bench) this.players.set(pid, p);
+    this.bench.clear();
   }
 
   emit(msg, exceptPid) {
@@ -253,7 +328,7 @@ export class Room {
     if (this.game || this.soiree) throw new Error('Une partie est déjà en cours');
     const games = [...new Set(list)].filter((id) => gameById(id)?.ready).slice(0, SOIREE.maxGames);
     if (games.length < 2) throw new Error('Choisis au moins 2 jeux pour la soirée');
-    const tooFew = games.map(gameById).find((g) => this.connectedCount() < g.min);
+    const tooFew = games.map(gameById).find((g) => this.playersFor(g) < g.min);
     if (tooFew) throw new Error(`${tooFew.title} : il faut au moins ${tooFew.min} joueurs`);
     this.soiree = { games, index: 0, step: 'game', scores: new Map(), until: 0, duration: 0, last: null, timer: null };
     for (const p of this.players.values()) this.soiree.scores.set(p.pid, 0);
@@ -339,8 +414,11 @@ export class Room {
     this.showBoard(false);
     if (!g || !g.ready) throw new Error(`${g?.title ?? 'Ce jeu'} arrive bientôt !`);
     if (this.game || this.starting) throw new Error('Une partie est déjà en cours');
-    if (this.connectedCount() < g.min) throw new Error(`Il faut au moins ${g.min} joueurs`);
+    if (this.playersFor(g) < g.min) throw new Error(`Il faut au moins ${g.min} joueurs`);
     this.starting = true;
+    // Les robots ne jouent qu'à certains jeux : sinon ils attendent au salon
+    if (!this.botsPlay(g)) this.benchBots();
+    let ok = false;
     try {
       const game = await g.impl.create(this, this.options[g.id], {
         changed: () => { if (this.game === game) this.broadcast(); },
@@ -355,15 +433,20 @@ export class Room {
       this.gameStartedAt = Date.now();
       this.phase = 'game';
       game.start();
+      ok = true;
       this.broadcast();
     } finally {
       this.starting = false;
+      if (!ok) this.unbenchBots();
     }
   }
 
   endGame(results) {
     if (!this.game) return;
     this.game.stop();
+    this.clearBots();
+    // Les robots ne vont ni dans les statistiques ni dans les membres du salon permanent
+    const humans = (results || []).filter((r) => !this.isBot(r.pid));
     // Les points de la partie s'ajoutent au score de la soirée
     for (const r of results || []) {
       const p = this.players.get(r.pid);
@@ -371,15 +454,16 @@ export class Room {
     }
     db.gameSaved(this.partyId, this.gameId, this.gameStartedAt, results || []);
     if (this.teams.on) this.lastTeams = { game: this.gameId, pts: this.teamTotals(results) };
-    if (this.perm) db.statsSaved(this.code, this.gameId, results || []);
-    for (const p of this.players.values()) db.playerSeen(this.partyId, p.pid, p.name, p.score);
+    if (this.perm) db.statsSaved(this.code, this.gameId, humans);
+    for (const p of this.players.values()) if (!p.bot) db.playerSeen(this.partyId, p.pid, p.name, p.score);
     // Salon permanent : le score total de chaque joueur est gardé
     if (this.perm) {
-      for (const r of results || []) {
+      for (const r of humans) {
         const p = this.players.get(r.pid);
         if (p) db.memberSaved(this.code, p, true);
       }
     }
+    this.unbenchBots();
     this.game = null;
     this.gameId = null;
     this.phase = 'lobby';
@@ -394,38 +478,47 @@ export class Room {
     return n;
   }
 
-  isIdle() { return this.tvs.size === 0 && this.connectedCount() === 0; }
+  // Humains connectés (les robots ne gardent pas un salon ouvert)
+  humansCount() {
+    let n = 0;
+    for (const p of this.players.values()) if (p.ws) n++;
+    return n;
+  }
+
+  isIdle() { return this.tvs.size === 0 && this.humansCount() === 0; }
 
   touch() {
     if (!this.isIdle()) this.idleSince = Date.now();
   }
 
   pickHost() {
+    // Jamais un robot
     const cur = this.players.get(this.hostPid);
-    if (cur && cur.connected) return;
-    const next = [...this.players.values()].sort((a, b) => a.joinedAt - b.joinedAt).find((p) => p.connected);
-    this.hostPid = next ? next.pid : (cur ? cur.pid : null);
+    if (cur && cur.ws) return;
+    const next = [...this.players.values()].sort((a, b) => a.joinedAt - b.joinedAt).find((p) => p.ws);
+    this.hostPid = next ? next.pid : (cur && !cur.bot ? cur.pid : null);
   }
 
   // ---- joueurs ----
   nameTaken(name, exceptPid) {
     const k = nameKey(name);
-    for (const p of this.players.values()) if (p.pid !== exceptPid && nameKey(p.name) === k) return true;
+    for (const p of [...this.players.values(), ...this.bench.values()]) if (p.pid !== exceptPid && nameKey(p.name) === k) return true;
     return false;
   }
 
-  addPlayer(profile, pid, score = 0) {
-    if (this.players.size >= config.maxPlayers) throw new Error(`Salon complet (${config.maxPlayers} joueurs max)`);
+  addPlayer(profile, pid, score = 0, bot = null) {
+    if (this.players.size + this.bench.size >= config.maxPlayers) throw new Error(`Salon complet (${config.maxPlayers} joueurs max)`);
     if (this.nameTaken(profile.name)) throw new Error('Ce pseudo est déjà pris dans ce salon');
     const p = new Player(profile, pid);
     p.score = score;
+    p.bot = bot;
     if (this.teams.on) p.team = this.smallestTeam();
     this.players.set(p.pid, p);
     this.maxSeen = Math.max(this.maxSeen, this.players.size);
-    if (!this.hostPid) this.hostPid = p.pid;
+    if (!this.hostPid && !bot) this.hostPid = p.pid;
     this.game?.onPlayerJoin?.(p);
     if (this.soiree && !this.soiree.scores.has(p.pid)) this.soiree.scores.set(p.pid, 0);
-    db.playerSeen(this.partyId, p.pid, p.name, 0);
+    if (!bot) db.playerSeen(this.partyId, p.pid, p.name, 0);
     return p;
   }
 
@@ -496,11 +589,14 @@ export class RoomManager {
     if (room.closed) return;
     room.closed = true;
     room.game?.stop();
+    room.clearBots();
+    room.unbenchBots();
     clearTimeout(room.soiree?.timer);
     clearTimeout(room.boardTimer);
     this.rooms.delete(room.code);
     const saves = [];
     for (const p of room.players.values()) {
+      if (p.bot) continue;
       saves.push(db.playerSeen(room.partyId, p.pid, p.name, p.score));
       if (room.perm) saves.push(db.memberSaved(room.code, p));
       if (p.ws) send(p.ws, { t: 'closed' });

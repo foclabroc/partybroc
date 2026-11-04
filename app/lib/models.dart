@@ -10,7 +10,8 @@ class PlayerView {
         photo = j['photo'] as String?,
         score = (j['score'] as num?)?.toInt() ?? 0,
         team = (j['team'] as num?)?.toInt(),
-        connected = j['connected'] == true;
+        connected = j['connected'] == true,
+        bot = j['bot'] as String?;
 
   final String pid;
   final String name;
@@ -20,6 +21,7 @@ class PlayerView {
   final int score;
   final int? team; // numéro d'équipe (équipes activées)
   final bool connected;
+  final String? bot; // robot : 'facile' ou 'malin' (null = joueur humain)
 }
 
 /// Équipes du salon (activées par l'hôte)
@@ -83,6 +85,7 @@ class GameInfo {
         ready = j['ready'] == true,
         pitch = (j['pitch'] as String?) ?? '',
         cat = (j['cat'] as String?) ?? 'fun',
+        bots = j['bots'] == true,
         options = {
           for (final e in ((j['options'] as Map?) ?? const {}).entries)
             e.key as String: GameOption.fromJson(e.value as Map<String, dynamic>),
@@ -92,6 +95,7 @@ class GameInfo {
   final String title;
   final String emoji;
   final String cat; // onglet : 'societe' (Jeux de société) ou 'fun' (Jeux fun)
+  final bool bots; // les robots jouent à ce jeu (avec les réglages actuels)
   final int min;
   final bool ready;
   final String pitch;
@@ -145,6 +149,10 @@ class RoomView {
   GameInfo? gameById(String id) => games.where((g) => g.id == id).firstOrNull;
 
   PlayerView? player(String pid) => players.where((p) => p.pid == pid).firstOrNull;
+
+  /// Joueurs pour ce jeu : humains connectés, plus les robots s'ils y jouent
+  int playersFor(GameInfo g) => players.where((p) => p.connected && (p.bot == null || g.bots)).length;
+  bool get hasBots => players.any((p) => p.bot != null);
 
   GameInfo? get game => games.where((g) => g.id == selectedGame).firstOrNull;
   PlayerView? get host => players.where((p) => p.pid == hostPid).firstOrNull;

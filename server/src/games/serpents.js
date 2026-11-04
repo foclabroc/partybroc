@@ -4,7 +4,7 @@
 // du surplus) ou il suffit d'atteindre 100.
 // Le premier sur la 100 gagne ; les autres sont classés selon leur case.
 import crypto from 'node:crypto';
-import { BaseGame, fastTimings, shuffle } from './common.js';
+import { BaseGame, botMs, fastTimings, shuffle } from './common.js';
 
 export const SNK = fastTimings({
   introMs: 9000,
@@ -144,6 +144,12 @@ export class SerpentsGame extends BaseGame {
 
   onPlayerGone(p) {
     if (this.phase === 'turn' && p.pid === this.current) this.schedule(SNK.goneMs, () => this.roll(p.pid, true));
+  }
+
+  // Robot : lance le dé à son tour
+  botAction(pid) {
+    if (this.phase === 'turn' && this.current === pid) return { m: { t: 'snk_roll' }, ms: botMs(1400, 2600) };
+    return null;
   }
 
   publicState() {

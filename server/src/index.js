@@ -380,6 +380,14 @@ const handlers = {
     room.broadcast();
   },
 
+  // Ajouter un robot (niveau 'facile' ou 'malin') ; on le retire avec « kick »
+  bot_add(ws, m) {
+    const { room, player: p } = ws.ctx;
+    if (!p || room.hostPid !== p.pid || room.game || room.starting) return;
+    try { room.addBot(m.level); } catch (e) { return err(ws, e.message, 'refused'); }
+    room.broadcast();
+  },
+
   select_game(ws, m) {
     const { room, player: p } = ws.ctx;
     if (!p || room.hostPid !== p.pid || !gameById(m.game) || room.game) return;
@@ -402,7 +410,7 @@ const handlers = {
     if (!p || room.hostPid !== p.pid || room.soiree) return;
     const g = gameById(room.selectedGame);
     if (!g.ready) return err(ws, `${g.title} arrive bientôt !`, 'not_ready');
-    if (room.connectedCount() < g.min) return err(ws, `Il faut au moins ${g.min} joueurs`, 'not_enough');
+    if (room.playersFor(g) < g.min) return err(ws, `Il faut au moins ${g.min} joueurs`, 'not_enough');
     try { await room.startGame(); } catch (e) { err(ws, e.message, 'start_failed'); }
   },
 

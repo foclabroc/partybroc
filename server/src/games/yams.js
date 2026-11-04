@@ -5,7 +5,7 @@
 // Bas : Brelan et Carré = total des dés, Full 25, Petite suite 30, Grande suite 40,
 // Yams 50, Chance = total des dés. Points de la partie = total de la feuille.
 import crypto from 'node:crypto';
-import { BaseGame, fastTimings, shuffle } from './common.js';
+import { BaseGame, botMs, fastTimings, shuffle } from './common.js';
 
 export const YMS = fastTimings({
   introMs: 9000,
@@ -72,6 +72,61 @@ function autoHold(dice) {
   let best = 6;
   for (let v = 6; v >= 1; v--) if (c[v] > c[best]) best = v;
   return dice.map((v) => v === best);
+}
+
+// Plan d'un robot après un lancer : quels dés garder, ou s'arrêter et quelle case prendre.
+// Malin : vise les suites quand elles sont libres, garde deux paires pour le Full, sinon la
+// valeur la plus fréquente (la plus forte à égalité, de préférence une case encore libre).
+// Facile : garde toujours la valeur la plus fréquente et s'arrête parfois trop tôt.
+export function ymsPlan(sheet, dice, left, level) {
+  const free = (k) => sheet[k] == null;
+  const c = [0, 0, 0, 0, 0, 0, 0];
+  for (const v of dice) c[v]++;
+  const pick = () => {
+    if (level === 'malin') return autoPick(sheet, dice);
+    // Facile : souvent la meilleure case, parfois une autre parmi les 3 meilleures
+    if (Math.random() < 0.6) return autoPick(sheet, dice);
+    const top = CATS.filter(free).sort((a, b) => score(b, dice) - score(a, dice)).slice(0, 3);
+    return top[crypto.randomInt(top.length)];
+  };
+  const stop = { stop: true, pick: null };
+  if (left === 0) return { ...stop, pick: pick() };
+  if (free('yams') && score('yams', dice)) return { ...stop, pick: 'yams' };
+  if (free('grande') && score('grande', dice)) return { ...stop, pick: 'grande' };
+  if (free('full') && score('full', dice)) return { ...stop, pick: 'full' };
+  if (level === 'facile' && Math.random() < 0.25) return { ...stop, pick: pick() };
+  const keepValues = (vals) => {
+    const want = [...vals];
+    return dice.map((v) => {
+      const i = want.indexOf(v);
+      if (i < 0) return false;
+      want.splice(i, 1);
+      return true;
+    });
+  };
+  if (level === 'malin') {
+    // Suites : 4 qui se suivent (petite déjà faite → on tente la grande), ou 3 qui se suivent
+    for (const run of [[2, 3, 4, 5], [1, 2, 3, 4], [3, 4, 5, 6]]) {
+      if (run.every((v) => c[v]) && free('grande')) return { stop: false, held: keepValues(run) };
+    }
+    if (free('petite') && score('petite', dice)) return { ...stop, pick: 'petite' };
+    if (Math.max(...c) <= 2 && (free('petite') || free('grande'))) {
+      for (const run of [[3, 4, 5], [2, 3, 4], [4, 5, 6], [1, 2, 3]]) {
+        if (run.every((v) => c[v])) return { stop: false, held: keepValues(run) };
+      }
+    }
+    // Deux paires et Full libre : on garde les deux paires
+    const pairs = [1, 2, 3, 4, 5, 6].filter((v) => c[v] === 2);
+    if (pairs.length === 2 && free('full')) return { stop: false, held: dice.map((v) => pairs.includes(v)) };
+  }
+  // La valeur la plus fréquente (Malin : plutôt une valeur dont la case du haut est libre)
+  let best = 0;
+  let bestScore = -1;
+  for (let v = 1; v <= 6; v++) {
+    const s = c[v] * 10 + v + (level === 'malin' && free(String(v)) ? 5 : 0);
+    if (c[v] && s > bestScore) { best = v; bestScore = s; }
+  }
+  return { stop: false, held: dice.map((v) => v === best) };
 }
 
 const die = () => crypto.randomInt(1, 7);
@@ -218,6 +273,19 @@ export class YamsGame extends BaseGame {
 
   onPlayerGone(p) {
     if (this.phase === 'turn' && p.pid === this.current) this.schedule(YMS.goneMs, () => this.autoPlay());
+  }
+
+  // Robot : lance, garde ses dés un par un (on les voit passer dans « Dés gardés »), relance, puis choisit sa case
+  botAction(pid, level) {
+    if (this.phase !== 'turn' || this.current !== pid) return null;
+    if (this.left === 3) return { m: { t: 'yms_roll' }, ms: botMs(1200, 2200) };
+    // Laisser les dés finir de rouler sur la TV
+    const settle = Math.max(0, YMS.rollGapMs + botMs(300, 700) - (Date.now() - this.lastRoll));
+    const plan = this.botMemo(`${pid}:${this.rollSeq}`, () => ymsPlan(this.sheets.get(pid), this.dice, this.left, level));
+    if (plan.stop) return { m: { t: 'yms_pick', k: plan.pick }, ms: Math.max(settle, botMs(1000, 1800)) };
+    const i = this.held.findIndex((h, j) => h !== plan.held[j]);
+    if (i >= 0) return { m: { t: 'yms_hold', i }, ms: Math.max(settle, botMs(450, 800)) };
+    return { m: { t: 'yms_roll' }, ms: Math.max(settle, botMs(700, 1200)) };
   }
 
   publicState() {

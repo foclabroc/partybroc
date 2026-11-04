@@ -180,7 +180,7 @@ class _SoireePickerState extends State<SoireePicker> {
   @override
   Widget build(BuildContext context) {
     final games = widget.room.games.where((g) => g.ready).toList();
-    final n = widget.room.players.where((p) => p.connected).length;
+
     return SafeArea(
       child: SizedBox(
         height: MediaQuery.sizeOf(context).height * .8,
@@ -195,7 +195,7 @@ class _SoireePickerState extends State<SoireePicker> {
               for (final g in games)
                 Builder(builder: (_) {
                   final pos = _list.indexOf(g.id);
-                  final tooFew = n < g.min;
+                  final tooFew = widget.room.playersFor(g) < g.min;
                   return ListTile(
                     enabled: !tooFew,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 6),

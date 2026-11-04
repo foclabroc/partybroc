@@ -20,7 +20,7 @@
 // son prénom tapé par l'hôte) ou faux (le tirage reprend). Pas de points, les gagnants
 // s'affichent à la fin.
 import crypto from 'node:crypto';
-import { BaseGame, fastTimings, shuffle } from './common.js';
+import { BaseGame, botMs, fastTimings, shuffle } from './common.js';
 
 export const LOTO = fastTimings({
   cartons: [1, 2],
@@ -391,6 +391,35 @@ export class LotoGame extends BaseGame {
   end() {
     if (this.phase === 'podium') return;
     this.podium(LOTO.podiumMs);
+  }
+
+  // Robot (mode Téléphones) : prend des cartons au hasard dans sa liste, puis crie quand il a
+  // gagné (Malin : presque toujours et vite ; Facile : plus lent et il en rate)
+  botAction(pid, level) {
+    if (this.paper || this.paused) return null;
+    if (this.phase === 'choose') {
+      if (!this.join(pid)) return null;
+      const mine = this.mine.get(pid);
+      if (mine.length < this.perPlayer) {
+        const pool = this.pools.get(pid).filter((no) => !mine.includes(no));
+        const no = this.botMemo(`${pid}:pick:${mine.length}`, () => pool[crypto.randomInt(pool.length)]);
+        return { m: { t: 'loto_pick', no }, ms: botMs(900, 2000) };
+      }
+      if (!this.ready.has(pid)) return { m: { t: 'loto_ready' }, ms: botMs(600, 1400) };
+      return null;
+    }
+    if (this.auto || !this.grids(pid).length || (this.lock.get(pid) || 0) > Date.now()) return null;
+    if (!(this.phase === 'draw' && this.rolling == null) && this.phase !== 'win') return null;
+    const last = this.winners[this.winners.length - 1];
+    let prize = this.prize;
+    if (this.phase === 'win') {
+      if (!last || last.at !== this.drawn.length || last.pids.includes(pid)) return null;
+      prize = PRIZES.find((x) => x.id === last.prize);
+    }
+    if (!prize || !this.grids(pid).some((g) => fullLines(g, this.drawnSet) >= prize.lines)) return null;
+    const malin = level === 'malin';
+    const go = this.botMemo(`${pid}:claim:${this.drawn.length}`, () => Math.random() < (malin ? 0.95 : 0.7));
+    return go ? { m: { t: 'loto_claim' }, ms: malin ? botMs(900, 2000) : botMs(2500, 4500) } : null;
   }
 
   onMessage(p, m) {

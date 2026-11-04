@@ -742,6 +742,12 @@ class _LobbyView extends StatelessWidget {
             onPressed: game == null || !game.ready ? null : () => send({'t': 'start_game'}),
             child: Text(game == null ? 'Lancer' : 'Lancer ${game.title}'),
           ),
+          if (game != null && !game.bots && room.hasBots)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text('🤖 Les robots ne jouent pas à ce jeu : ils attendent au salon.',
+                  textAlign: TextAlign.center, style: Pb.t(14, color: Pb.muted)),
+            ),
           const SizedBox(height: 10),
           // Plusieurs jeux d'affilée, avec un classement général
           OutlinedButton.icon(
@@ -794,8 +800,11 @@ class _LobbyView extends StatelessWidget {
               PbAvatar(size: 40, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}',
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}'),
+                    if (p.bot != null) TextSpan(text: '  robot ${p.bot == 'facile' ? 'Facile' : 'Malin'}', style: Pb.t(13, weight: 600, color: Pb.cyan)),
+                  ]),
                   style: Pb.t(18, weight: 500, color: p.connected ? Pb.text : Pb.muted),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -810,6 +819,14 @@ class _LobbyView extends StatelessWidget {
                 ),
             ]),
           ),
+        if (isHost && room.players.length < room.maxPlayers) ...[
+          const SizedBox(height: 4),
+          OutlinedButton.icon(
+            onPressed: () => _addBot(context),
+            icon: const Text('🤖'),
+            label: const Text('Ajouter un robot'),
+          ),
+        ],
         const SizedBox(height: 18),
         InviteButton(code: room.code, perm: room.perm),
         const SizedBox(height: 14),
@@ -820,6 +837,53 @@ class _LobbyView extends StatelessWidget {
         const Center(child: HomeIconButton()),
       ],
     );
+  }
+
+  // Choix du niveau du robot
+  Future<void> _addBot(BuildContext context) async {
+    final level = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Pb.bg2,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('🤖 Ajouter un robot', style: Pb.t(22, weight: 700)),
+            const SizedBox(height: 6),
+            Text(
+              'Il joue aux jeux de société (pas à Photo roulette ni au Loto en cartons papier). '
+              'Pendant les autres jeux, il attend au salon. Retire-le avec la croix.',
+              style: Pb.t(15, color: Pb.muted),
+            ),
+            const SizedBox(height: 16),
+            for (final (id, title, sub) in const [
+              ('facile', 'Facile', 'Joue un peu au hasard, oublie parfois « Dernière carte ! »'),
+              ('malin', 'Malin', 'Réfléchit à ses coups, dénonce vite, vise les grosses cases'),
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Material(
+                  color: Pb.card,
+                  borderRadius: BorderRadius.circular(18),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () => Navigator.pop(ctx, id),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(title, style: Pb.t(20, weight: 700)),
+                        Text(sub, style: Pb.t(14, color: Pb.muted)),
+                      ]),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      ),
+    );
+    if (level != null) send({'t': 'bot_add', 'level': level});
   }
 
   Future<void> _confirmKick(BuildContext context, PlayerView p) async {
@@ -856,11 +920,10 @@ class _GamePickerState extends State<_GamePicker> {
   Widget build(BuildContext context) {
     final room = widget.room;
     final cur = room.games.where((g) => g.id == room.selectedGame).firstOrNull ?? room.games.first;
-    final players = room.players.where((p) => p.connected).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       _GameTile(
         g: cur,
-        players: players,
+        players: room.playersFor(cur),
         selected: true,
         trailing: AnimatedRotation(
           turns: _open ? .5 : 0,
@@ -903,7 +966,7 @@ class _GamePickerState extends State<_GamePicker> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: _GameTile(
                           g: g,
-                          players: players,
+                          players: room.playersFor(g),
                           selected: false,
                           onTap: () {
                             HapticFeedback.selectionClick();
