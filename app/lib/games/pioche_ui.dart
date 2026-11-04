@@ -74,7 +74,8 @@ class PchCard extends StatelessWidget {
   }
 }
 
-/// Dos de carte (la pioche)
+/// Dos de carte (la pioche) : modèle « Rayons », assets/cards/back.webp
+/// (source : tools/dos_broc_pioche.svg, rendu en 360×540)
 class PchBack extends StatelessWidget {
   const PchBack({super.key, required this.w});
   final double w;
@@ -83,14 +84,26 @@ class PchBack extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: w,
         height: w * 1.5,
-        alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Pb.pink, Color(0xFF7B3FE4)]),
-          borderRadius: BorderRadius.circular(w * .14),
-          border: Border.all(color: Colors.white, width: w * .05),
+          borderRadius: BorderRadius.circular(w * .12),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .35), blurRadius: w * .08, offset: Offset(0, w * .04))],
         ),
-        child: Transform.rotate(angle: -.35, child: Text('PB', style: Pb.t(w * .38, weight: 700))),
+        child: Image.asset(
+          'assets/cards/back.webp',
+          width: w,
+          height: w * 1.5,
+          fit: BoxFit.fill,
+          filterQuality: FilterQuality.medium,
+          errorBuilder: (_, _, _) => Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFFF7A45), Color(0xFFE8336E)]),
+              borderRadius: BorderRadius.circular(w * .12),
+              border: Border.all(color: Colors.white, width: w * .05),
+            ),
+            child: Text('Broc\nPioche', textAlign: TextAlign.center, style: Pb.t(w * .16, weight: 700)),
+          ),
+        ),
       );
 }
 
