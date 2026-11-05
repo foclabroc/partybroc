@@ -22,6 +22,7 @@ import { SerpentsGame, SNK } from './serpents.js';
 import { YamsGame, YMS } from './yams.js';
 import { SkipBrocGame, SBR, STOCK_OPTIONS } from './skipbroc.js';
 import { ScrabrocGame, SCR } from './scrabroc.js';
+import { PouilleuxGame, POU } from './pouilleux.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -93,6 +94,9 @@ export const GAMES = [
   { id: 'scrabroc',  title: 'Scrabroc',         emoji: '🔤', min: 2, cat: 'societe', bots: true, ready: true, impl: ScrabrocGame,
     pitch: 'Pose tes lettres sur le plateau et vise les cases qui comptent triple !',
     options: { temps: { label: 'Temps par tour', values: SCR.times, def: SCR.defaultTime } } },
+  { id: 'pouilleux', title: 'Le Pouilleux',     emoji: '🤡', min: 2, cat: 'societe', bots: true, ready: true, impl: PouilleuxGame,
+    pitch: 'Pioche chez ton voisin, fais tes paires… et ne garde pas le valet de pique !',
+    options: { gage: { label: 'Gage', values: POU.gages, def: POU.gages[0] } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, bots: (o) => o.mode !== 'Cartons papier', impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {

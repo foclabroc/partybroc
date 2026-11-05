@@ -141,6 +141,31 @@ const gameRules = <String, (String, List<(String, List<String>)>)>{
       ]),
     ],
   ),
+  'pouilleux': (
+    '🤡 Le Pouilleux',
+    [
+      ('But', ['Se débarrasser de toutes ses cartes et surtout ne pas garder le valet de pique : le Pouilleux !']),
+      ('Le jeu', [
+        '32 cartes jusqu’à 5 joueurs (du 7 à l’as), 52 au-delà. Le valet de trèfle est retiré : le valet de pique n’a plus de paire.',
+        'Une paire = deux cartes de même valeur et de même couleur (rouge ou noire) : deux rois rouges, deux 8 noirs…',
+        'Toutes les cartes sont distribuées et les paires déjà en main sont posées d’office au milieu.',
+      ]),
+      ('À ton tour', [
+        'Touche une carte cachée chez ton voisin : tout le monde voit sur laquelle tu hésites. Change d’avis autant que tu veux, puis « Prendre cette carte ».',
+        'Si elle forme une paire avec une de tes cartes, la paire part au milieu.',
+        'Ensuite, c’est à ton voisin de piocher chez le sien.',
+        'Sans réponse avant la fin du temps, une carte est prise au hasard.',
+      ]),
+      ('Ta main', [
+        'Glisse tes cartes pour les ranger comme tu veux. Les autres les voient de dos, en miroir (comme assis en face).',
+        'Quelqu’un hésite sur ta carte ? Elle se soulève en rouge sur ton téléphone : range-la ailleurs ou « Mélanger » pour brouiller les pistes !',
+      ]),
+      ('Fin de partie', [
+        'Plus de cartes = sauvé ! Le premier sauvé gagne 1000 points, puis 150 de moins à chaque place.',
+        'Le dernier, qui garde le valet de pique, est le Pouilleux : 0 point… et un gage si l’option est choisie.',
+      ]),
+    ],
+  ),
   'loto': (
     '🎱 Loto',
     [
