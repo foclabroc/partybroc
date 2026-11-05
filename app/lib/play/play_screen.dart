@@ -20,6 +20,8 @@ import '../games/oie_ui.dart';
 import '../games/serpents_ui.dart';
 import '../games/yams_ui.dart';
 import '../games/skipbroc_ui.dart';
+import '../games/scrabroc_ui.dart';
+import '../games/rules.dart';
 import '../games/pioche_ui.dart';
 import '../games/survie_ui.dart';
 import '../games/zoom_ui.dart';
@@ -203,6 +205,10 @@ class _PlayScreenState extends State<PlayScreen> {
         }
       case 'draw':
         DrawBoard.instance.apply(m);
+      case 'scr_preview':
+        ScrPreview.value.value = m;
+      case 'scr_refused':
+        _toast('❌ ${m['msg']}');
       case 'dsn_close':
         _toast('🔥 Chaud ! « ${m['text']} » est presque bon');
       case 'profile_ok':
@@ -459,7 +465,10 @@ class _PlayScreenState extends State<PlayScreen> {
     ]);
   }
 
-  Widget _play(RoomView room) {
+  // Jeux de société : petit bouton « 📖 Règles » en haut à gauche
+  Widget _play(RoomView room) => withRules(room.live?['id'] as String?, _playGame(room));
+
+  Widget _playGame(RoomView room) {
     final live = room.live;
     final host = room.hostPid == _myPid;
     switch (live?['id']) {
@@ -509,6 +518,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return YmsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'skipbroc':
         return SbrPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'scrabroc':
+        return ScrPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'loto':
         return LotoPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
     }

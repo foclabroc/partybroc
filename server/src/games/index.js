@@ -21,6 +21,7 @@ import { OieGame } from './oie.js';
 import { SerpentsGame, SNK } from './serpents.js';
 import { YamsGame, YMS } from './yams.js';
 import { SkipBrocGame, SBR, STOCK_OPTIONS } from './skipbroc.js';
+import { ScrabrocGame, SCR } from './scrabroc.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -89,6 +90,9 @@ export const GAMES = [
   { id: 'skipbroc',  title: 'Skip-Broc',        emoji: '🪜', min: 2, cat: 'societe', bots: true, ready: true, impl: SkipBrocGame,
     pitch: 'Monte les piles de 1 à 12 et vide ton talon le premier !',
     options: { talon: { label: 'Talon', values: STOCK_OPTIONS, def: `${SBR.defaultSize} cartes` } } },
+  { id: 'scrabroc',  title: 'Scrabroc',         emoji: '🔤', min: 2, cat: 'societe', bots: true, ready: true, impl: ScrabrocGame,
+    pitch: 'Pose tes lettres sur le plateau et vise les cases qui comptent triple !',
+    options: { temps: { label: 'Temps par tour', values: SCR.times, def: SCR.defaultTime } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, bots: (o) => o.mode !== 'Cartons papier', impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {
