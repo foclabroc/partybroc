@@ -22,6 +22,7 @@ import '../games/yams_ui.dart';
 import '../games/skipbroc_ui.dart';
 import '../games/scrabroc_ui.dart';
 import '../games/pouilleux_ui.dart';
+import '../games/tas_ui.dart';
 import '../games/rules.dart';
 import '../games/pioche_ui.dart';
 import '../games/survie_ui.dart';
@@ -523,6 +524,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ScrPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'pouilleux':
         return PouPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'tas':
+        return TasPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'loto':
         return LotoPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
     }

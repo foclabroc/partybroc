@@ -166,6 +166,27 @@ const gameRules = <String, (String, List<(String, List<String>)>)>{
       ]),
     ],
   ),
+  'tas': (
+    '💩 Le tas de merde',
+    [
+      ('But', ['Récolter le moins de kilos de merde possible à la fin des manches.']),
+      ('Une manche', [
+        'Chacun reçoit 4 cartes. Il y a en jeu autant de valeurs que de joueurs, avec leurs 4 cartes : tout le monde peut faire un carré. Le reste des cartes forme le tas au milieu.',
+        'Tous en même temps, choisissez une carte à passer à votre voisin (touche-la ; touche-la encore pour changer d’avis). Sans choix à temps, une carte part au hasard.',
+        'Les cartes passent, tu reçois celle de ton autre voisin (entourée en bleu), et on recommence.',
+      ]),
+      ('Taper sur le tas', [
+        'Tu as 4 cartes de même valeur (un carré) ? Appuie sur « TAPE ! ».',
+        'Dès que quelqu’un a tapé, tout le monde doit taper le plus vite possible !',
+        'Le dernier à taper (ou ceux qui n’ont pas tapé à temps) pioche la carte du dessus du tas : sa valeur = ses kilos de merde. L’as vaut 11 (le pire !), les figures 10.',
+        'Le 7, c’est la chasse d’eau : tous tes kilos partent !',
+        'Taper sans carré : 2 kilos de pénalité.',
+      ]),
+      ('Fin de partie', [
+        'Après les manches choisies par l’hôte (3, 5 ou 7), le moins de kilos gagne : 1000 points, puis 150 de moins à chaque place.',
+      ]),
+    ],
+  ),
   'loto': (
     '🎱 Loto',
     [

@@ -23,6 +23,7 @@ import { YamsGame, YMS } from './yams.js';
 import { SkipBrocGame, SBR, STOCK_OPTIONS } from './skipbroc.js';
 import { ScrabrocGame, SCR } from './scrabroc.js';
 import { PouilleuxGame, POU } from './pouilleux.js';
+import { TasGame, TAS } from './tas.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -97,6 +98,9 @@ export const GAMES = [
   { id: 'pouilleux', title: 'Le Pouilleux',     emoji: '🤡', min: 2, cat: 'societe', bots: true, ready: true, impl: PouilleuxGame,
     pitch: 'Pioche chez ton voisin, fais tes paires… et ne garde pas le valet de pique !',
     options: { gage: { label: 'Gage', values: POU.gages, def: POU.gages[0] } } },
+  { id: 'tas', title: 'Le tas de merde',  emoji: '💩', min: 3, cat: 'societe', bots: true, ready: true, impl: TasGame,
+    pitch: 'Fais un carré, tape sur le tas… et ne sois pas le dernier à taper !',
+    options: { manches: { label: 'Manches', values: TAS.manches, def: 5 } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, bots: (o) => o.mode !== 'Cartons papier', impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {

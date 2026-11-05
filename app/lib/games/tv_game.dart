@@ -17,6 +17,7 @@ import 'yams_ui.dart';
 import 'skipbroc_ui.dart';
 import 'scrabroc_ui.dart';
 import 'pouilleux_ui.dart';
+import 'tas_ui.dart';
 import 'pioche_ui.dart';
 import 'survie_ui.dart';
 import 'zoom_ui.dart';
@@ -53,6 +54,7 @@ Widget tvGameView(RoomView room) {
     'skipbroc' => SbrTv(room: room, live: live),
     'scrabroc' => ScrTv(room: room, live: live),
     'pouilleux' => PouTv(room: room, live: live),
+    'tas' => TasTv(room: room, live: live),
     'loto' => LotoTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
