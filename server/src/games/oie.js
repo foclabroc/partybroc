@@ -13,6 +13,7 @@ export const OIE = fastTimings({
   introMs: 9000,
   turnMs: 20000,          // temps pour lancer (sinon les dés sont lancés tout seuls)
   goneMs: 3000,           // joueur déconnecté : on lance pour lui
+  diceMs: 1000,           // les dés roulent sur la TV avant que le pion avance
   moveMs: 3200,           // le temps de lire ce qui s'est passé
   skipMs: 2200,           // « X passe son tour »
   defiMs: 15000,
@@ -132,15 +133,15 @@ export class OieGame extends BaseGame {
       this.winner = pid;
       this.phase = 'move';
       this.changed();
-      return this.schedule(OIE.moveMs, () => this.end());
+      return this.schedule(OIE.diceMs + OIE.moveMs, () => this.end());
     }
     if (DEFI.includes(to) && this.questions.length) {
       this.phase = 'move';
       this.changed();
-      return this.schedule(OIE.moveMs, () => this.askDefi(pid));
+      return this.schedule(OIE.diceMs + OIE.moveMs, () => this.askDefi(pid));
     }
     this.phase = 'move';
-    this.schedule(OIE.moveMs, () => this.nextTurn());
+    this.schedule(OIE.diceMs + OIE.moveMs, () => this.nextTurn());
     this.changed();
   }
 
@@ -282,6 +283,7 @@ export class OieGame extends BaseGame {
       })),
       current: ['turn', 'move', 'defi', 'defi_reveal', 'skip'].includes(this.phase) ? this.current : null,
       dice: this.dice,
+      diceMs: OIE.diceMs,
       event: this.event,
       winner: this.winner,
     };

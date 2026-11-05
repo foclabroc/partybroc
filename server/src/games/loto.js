@@ -477,7 +477,6 @@ export class LotoGame extends BaseGame {
       last: this.drawn[this.drawn.length - 1] ?? null,
       rolling: this.rolling,
       paused: this.paused,
-      rolling: this.phase === 'roll' ? this.rolling : null,
       nick: NICKNAMES[this.drawn[this.drawn.length - 1]] ?? null,
       prize: prize ? { id: prize.id, title: prize.title, points: prize.points } : null,
       auto: this.auto,

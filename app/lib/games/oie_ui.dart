@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -126,13 +127,48 @@ class _RoadPainter extends CustomPainter {
 }
 
 /// Le plateau avec les cases et les pions (photos de profil) des joueurs
-class OieBoardView extends StatelessWidget {
+class OieBoardView extends StatefulWidget {
   const OieBoardView({super.key, required this.room, required this.live});
   final RoomView room;
   final Map<String, dynamic> live;
 
   @override
+  State<OieBoardView> createState() => _OieBoardViewState();
+}
+
+class _OieBoardViewState extends State<OieBoardView> {
+  // Pion gardé sur sa case de départ pendant que les dés roulent
+  final _hold = <String, int>{};
+  int _seq = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _seq = widget.live.i('seq');
+  }
+
+  @override
+  void didUpdateWidget(covariant OieBoardView old) {
+    super.didUpdateWidget(old);
+    final seq = widget.live.i('seq');
+    final e = widget.live['event'];
+    if (seq == _seq) return;
+    _seq = seq;
+    if (e is Map && e['k'] == 'roll' && e['from'] is num && widget.live.phase == 'move') {
+      final pid = e['pid'] as String;
+      _hold[pid] = (e['from'] as num).toInt();
+      Future<void>.delayed(Duration(milliseconds: widget.live.i('diceMs', 1000)), () {
+        if (mounted && _hold.remove(pid) != null) setState(() {});
+      });
+    } else {
+      _hold.clear();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final room = widget.room;
+    final live = widget.live;
     final board = OieBoard.instance;
     final players = [for (final p in (live['players'] as List? ?? const [])) p as Map];
     final current = live.s('current');
@@ -140,7 +176,7 @@ class OieBoardView extends StatelessWidget {
     final count = <int, int>{};
     final pawns = <Widget>[];
     for (final p in players) {
-      final pos = (p['pos'] as num).toInt().clamp(0, 63);
+      final pos = (_hold[p['pid']] ?? (p['pos'] as num).toInt()).clamp(0, 63);
       final k = count[pos] = (count[pos] ?? 0) + 1;
       final pv = room.player(p['pid'] as String);
       if (pv == null) continue;
@@ -241,8 +277,94 @@ class _PinTip extends CustomPainter {
 }
 
 /// Un dé (points dessinés)
-class OieDie extends StatelessWidget {
-  const OieDie({super.key, required this.value, this.size = 100, this.angle = 0});
+/// Un dé. Avec [rollKey] : à chaque nouvelle valeur de la clé, il est lancé (il tourne, saute
+/// et change de face pendant [rollMs]) avant de s'arrêter sur [value].
+class OieDie extends StatefulWidget {
+  const OieDie({super.key, required this.value, this.size = 100, this.angle = 0, this.rollKey, this.rollMs = 1000});
+  final int? value; // null = « ? »
+  final double size;
+  final double angle;
+  final Object? rollKey;
+  final int rollMs;
+
+  @override
+  State<OieDie> createState() => _OieDieState();
+}
+
+class _OieDieState extends State<OieDie> with SingleTickerProviderStateMixin {
+  late final _c = AnimationController(vsync: this, duration: Duration(milliseconds: widget.rollMs));
+  final _rand = math.Random();
+  Object? _rolled;
+  int _face = 1;
+  int _lastTick = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addListener(_tick);
+    _maybeRoll();
+  }
+
+  @override
+  void didUpdateWidget(covariant OieDie old) {
+    super.didUpdateWidget(old);
+    _maybeRoll();
+  }
+
+  void _maybeRoll() {
+    final k = widget.rollKey;
+    if (k == null || k == _rolled || widget.value == null) return;
+    _rolled = k;
+    _c.duration = Duration(milliseconds: widget.rollMs);
+    _c.forward(from: 0);
+  }
+
+  // Nouvelle face au hasard, de moins en moins souvent (le dé ralentit)
+  void _tick() {
+    final t = _c.value;
+    final tick = (math.pow(t, .6) * 11).floor();
+    if (tick != _lastTick && t < .82) {
+      _lastTick = tick;
+      setState(() {
+        var f = 1 + _rand.nextInt(6);
+        if (f == _face) f = f % 6 + 1;
+        _face = f;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final rolling = _c.isAnimating && _c.value < .82;
+        final t = Curves.easeOutCubic.transform(_c.value);
+        // Tours sur lui-même qui ralentissent, deux rebonds de plus en plus petits
+        final spin = _c.isAnimating ? (1 - t) * math.pi * 5 : 0.0;
+        final hop = _c.isAnimating ? (math.sin(_c.value * math.pi * 2).abs() * (1 - _c.value)) * widget.size * .55 : 0.0;
+        final squash = _c.isAnimating ? 1 + .12 * math.sin(_c.value * math.pi * 4) * (1 - _c.value) : 1.0;
+        return Transform.translate(
+          offset: Offset(0, -hop),
+          child: Transform.scale(
+            scale: squash,
+            child: OieDieFace(value: rolling ? _face : widget.value, size: widget.size, angle: widget.angle + spin),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// La face d'un dé, sans animation
+class OieDieFace extends StatelessWidget {
+  const OieDieFace({super.key, required this.value, this.size = 100, this.angle = 0});
   final int? value; // null = « ? »
   final double size;
   final double angle;
@@ -366,9 +488,9 @@ class OieTv extends StatelessWidget {
             ),
           ] else
             const Spacer(),
-          OieDie(value: dice.isNotEmpty ? dice[0] : null, size: 84, angle: -.08),
+          OieDie(value: dice.isNotEmpty ? dice[0] : null, size: 84, angle: -.08, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
           const SizedBox(width: 14),
-          OieDie(value: dice.length > 1 ? dice[1] : null, size: 84, angle: .1),
+          OieDie(value: dice.length > 1 ? dice[1] : null, size: 84, angle: .1, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
         ]),
       ),
       const SizedBox(height: 18),
@@ -548,9 +670,9 @@ class OiePlay extends StatelessWidget {
         if (dice.length == 2 && ph != 'turn') ...[
           const SizedBox(height: 18),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            OieDie(value: dice[0], size: 72, angle: -.08),
+            OieDie(value: dice[0], size: 72, angle: -.08, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
             const SizedBox(width: 14),
-            OieDie(value: dice[1], size: 72, angle: .1),
+            OieDie(value: dice[1], size: 72, angle: .1, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
           ]),
         ],
         const SizedBox(height: 18),

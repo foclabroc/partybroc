@@ -227,6 +227,8 @@ class _SnkBoardViewState extends State<SnkBoardView> {
     final step = widget.live.i('stepMs', 280);
     final slide = widget.live.i('slideMs', 1300);
     final path = [for (final n in (e['path'] as List? ?? const [])) (n as num).toInt()];
+    // Le pion attend que le dé ait fini de rouler
+    await Future<void>.delayed(Duration(milliseconds: widget.live.i('diceMs', 1000)));
     for (final n in path) {
       if (!mounted || token != _token) return;
       setState(() {
@@ -400,7 +402,7 @@ class SnkTv extends StatelessWidget {
             ),
           ] else
             const Spacer(),
-          OieDie(value: ph == 'turn' ? null : die, size: 104, angle: -.08),
+          OieDie(value: ph == 'turn' ? null : die, size: 104, angle: -.08, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
         ]),
       ),
       if (ph == 'turn') ...[
@@ -524,7 +526,7 @@ class SnkPlay extends StatelessWidget {
         ],
         if (die != null && ph != 'turn') ...[
           const SizedBox(height: 18),
-          OieDie(value: die, size: 80, angle: -.08),
+          OieDie(value: die, size: 80, angle: -.08, rollKey: ph == 'move' ? live.i('seq') : null, rollMs: live.i('diceMs', 1000)),
         ],
         const SizedBox(height: 18),
         for (final m in _msgs(live)) Text(m, textAlign: TextAlign.center, style: Pb.t(17, weight: 600, color: _cream)),

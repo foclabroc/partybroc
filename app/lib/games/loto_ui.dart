@@ -747,6 +747,7 @@ class _LotoPlayState extends State<LotoPlay> {
               child: Text('📢 Quelqu’un a crié ! Vérifier', style: Pb.t(22, weight: 700, color: Pb.bg)),
             ),
           ),
+        if (ph == 'draw' || ph == 'win') _pauseButton(),
       ]),
     );
   }
@@ -920,10 +921,37 @@ class _LotoPlayState extends State<LotoPlay> {
         const SizedBox(height: 10),
         if (!auto && prize != null) _claimButton(prize['id'] as String?),
         if (auto) Text('Marquage automatique', textAlign: TextAlign.center, style: Pb.t(15, color: Pb.muted)),
+        _pauseButton(),
       ]),
     );
     if (!iWon) return page;
     return Stack(children: [page, const Positioned.fill(child: IgnorePointer(child: Fireworks(seconds: 4)))]);
+  }
+
+  // Bouton Pause / Reprendre de l'hôte, bien visible pendant le tirage (aussi dans le menu « ⋯ »)
+  Widget _pauseButton() {
+    final live = widget.live;
+    if (!widget.isHost || (live.phase != 'draw' && live.phase != 'win')) return const SizedBox.shrink();
+    final paused = live['paused'] == true;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        height: 48,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: paused ? Pb.bg : Pb.yellow,
+            backgroundColor: paused ? Pb.yellow : null,
+            side: const BorderSide(color: Pb.yellow, width: 2),
+          ),
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            _g({'t': 'game_pause'});
+          },
+          icon: Icon(paused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+          label: Text(paused ? 'Reprendre le tirage' : 'Pause', style: Pb.t(18, weight: 700, color: paused ? Pb.bg : Pb.yellow)),
+        ),
+      ),
+    );
   }
 
   Widget _claimButton(String? prizeId) {

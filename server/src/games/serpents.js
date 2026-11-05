@@ -10,6 +10,7 @@ export const SNK = fastTimings({
   introMs: 9000,
   turnMs: 20000,          // temps pour lancer (sinon le dé est lancé tout seul)
   goneMs: 3000,           // joueur déconnecté : on lance pour lui
+  diceMs: 1000,           // le dé roule sur la TV avant que le pion avance
   stepMs: 280,            // durée d'une case sur la TV (l'appli anime le pion)
   slideMs: 1300,          // montée d'une échelle / descente d'un serpent
   readMs: 1600,           // le temps de lire ce qui s'est passé
@@ -115,7 +116,7 @@ export class SerpentsGame extends BaseGame {
     }
     this.event = { seq: ++this.seq, pid, d, from, path: mv.path, land: mv.land, to: mv.to, kind: mv.kind, msgs };
     this.phase = 'move';
-    const ms = mv.path.length * SNK.stepMs + (mv.kind ? SNK.slideMs : 0) + SNK.readMs;
+    const ms = SNK.diceMs + mv.path.length * SNK.stepMs + (mv.kind ? SNK.slideMs : 0) + SNK.readMs;
     this.schedule(ms, () => (this.winner ? this.end() : this.nextTurn()));
     this.changed();
   }
@@ -157,6 +158,7 @@ export class SerpentsGame extends BaseGame {
       ...this.base('serpents'),
       seq: this.seq,
       exact: this.exact,
+      diceMs: SNK.diceMs,
       stepMs: SNK.stepMs,
       slideMs: SNK.slideMs,
       players: this.order.map((pid) => ({ pid, pos: this.pos.get(pid) || 1 })),
