@@ -20,6 +20,7 @@ import { PiocheGame, PCH } from './pioche.js';
 import { OieGame } from './oie.js';
 import { SerpentsGame, SNK } from './serpents.js';
 import { YamsGame, YMS } from './yams.js';
+import { SkipBrocGame, SBR, STOCK_OPTIONS } from './skipbroc.js';
 import { LotoGame, LOTO } from './loto.js';
 
 export const GAMES = [
@@ -85,6 +86,9 @@ export const GAMES = [
   { id: 'yams',      title: 'Yams',             emoji: '🎲', min: 1, cat: 'societe', ready: true, bots: true, impl: YamsGame,
     pitch: '5 dés, 3 lancers, 13 cases à remplir : vise le Yams !',
     options: { temps: { label: 'Secondes par tour', values: YMS.times, def: YMS.defaultTime } } },
+  { id: 'skipbroc',  title: 'Skip-Broc',        emoji: '🪜', min: 2, cat: 'societe', bots: true, ready: true, impl: SkipBrocGame,
+    pitch: 'Monte les piles de 1 à 12 et vide ton talon le premier !',
+    options: { talon: { label: 'Talon', values: STOCK_OPTIONS, def: `${SBR.defaultSize} cartes` } } },
   { id: 'loto',      title: 'Loto',             emoji: '🎱', min: 1, cat: 'societe', ready: true, bots: (o) => o.mode !== 'Cartons papier', impl: LotoGame,
     pitch: 'La TV tire les boules : quine, double quine, carton plein !',
     options: {

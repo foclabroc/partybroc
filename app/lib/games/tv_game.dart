@@ -14,6 +14,7 @@ import 'loto_ui.dart';
 import 'oie_ui.dart';
 import 'serpents_ui.dart';
 import 'yams_ui.dart';
+import 'skipbroc_ui.dart';
 import 'pioche_ui.dart';
 import 'survie_ui.dart';
 import 'zoom_ui.dart';
@@ -47,6 +48,7 @@ Widget tvGameView(RoomView room) {
     'oie' => OieTv(room: room, live: live),
     'serpents' => SnkTv(room: room, live: live),
     'yams' => YmsTv(room: room, live: live),
+    'skipbroc' => SbrTv(room: room, live: live),
     'loto' => LotoTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };

@@ -85,6 +85,16 @@ def ding():
     return s * np.clip(x / 0.003, 0, 1)
 
 
+def tour():
+    """« À toi de jouer ! » : deux notes de clochette qui montent (téléphone)"""
+    x = t(0.75)
+    out = np.zeros(len(x))
+    for at, f in [(0.0, 1318.5), (0.14, 1760.0)]:
+        y = np.clip(x - at, 0, None)
+        on = (x >= at) * np.clip(y / 0.004, 0, 1)
+        out += on * sum(a * np.sin(2 * np.pi * f * k * y) * np.exp(-y / d) for k, a, d in [(1, 1, 0.28), (2, 0.35, 0.14), (3, 0.12, 0.08)])
+    return out
+
 def buzz():
     """Éliminé / raté : buzzer grave"""
     x = t(0.5)
@@ -183,3 +193,4 @@ if __name__ == '__main__':
     save('boom', boom(), 0.85)
     save('applause', applause(), 0.6)
     save('des', des())
+    save('tour', tour())

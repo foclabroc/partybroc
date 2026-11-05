@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'turn_alert/turn_alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
@@ -17,6 +19,7 @@ import '../games/loto_ui.dart';
 import '../games/oie_ui.dart';
 import '../games/serpents_ui.dart';
 import '../games/yams_ui.dart';
+import '../games/skipbroc_ui.dart';
 import '../games/pioche_ui.dart';
 import '../games/survie_ui.dart';
 import '../games/zoom_ui.dart';
@@ -99,6 +102,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _profile = await Profile.load(prefs);
     _showScreen = prefs.getBool('show_screen') ?? true;
     _phoneSfx = prefs.getBool('phone_sfx') ?? true;
+    TurnAlert.instance.enabled = prefs.getBool('turn_alert') ?? true;
     _sCode = prefs.getString('s_code');
     _sToken = prefs.getString('s_token');
     final wanted = widget.initialCode?.toUpperCase();
@@ -188,6 +192,8 @@ class _PlayScreenState extends State<PlayScreen> {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _you = m['you'] as Map<String, dynamic>?;
         });
+        // « À toi de jouer ! » : son et vibration quand c'est mon tour
+        TurnAlert.instance.onState(_room!.live?['id'] as String?, _you);
         // Joueur à distance (salon permanent) : les mêmes bruitages que la TV, s'il le veut
         if (_room!.perm && _phoneSfx) {
           Sfx.instance.init();
@@ -371,6 +377,12 @@ class _PlayScreenState extends State<PlayScreen> {
           showScreen: _showScreen,
           onShowScreen: _setShowScreen,
           phoneSfx: _phoneSfx,
+          turnAlert: TurnAlert.instance.enabled,
+          onTurnAlert: (v) {
+            _prefs?.setBool('turn_alert', v);
+            setState(() => TurnAlert.instance.enabled = v);
+            if (v) TurnAlert.instance.ping();
+          },
           onPhoneSfx: _setPhoneSfx,
           onStats: _openStats,
         );
@@ -495,6 +507,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return SnkPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'yams':
         return YmsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'skipbroc':
+        return SbrPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'loto':
         return LotoPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
     }
@@ -627,13 +641,15 @@ class _LobbyView extends StatelessWidget {
     required this.onShowScreen,
     required this.phoneSfx,
     required this.onPhoneSfx,
+    required this.turnAlert,
+    required this.onTurnAlert,
     required this.onStats,
   });
 
   final VoidCallback onStats;
 
-  final bool showScreen, phoneSfx;
-  final ValueChanged<bool> onShowScreen, onPhoneSfx;
+  final bool showScreen, phoneSfx, turnAlert;
+  final ValueChanged<bool> onShowScreen, onPhoneSfx, onTurnAlert;
   final RoomView room;
   final String? myPid;
   final VoidCallback onEdit;
@@ -829,6 +845,15 @@ class _LobbyView extends StatelessWidget {
         ],
         const SizedBox(height: 18),
         InviteButton(code: room.code, perm: room.perm),
+        SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          dense: true,
+          value: turnAlert,
+          activeThumbColor: Pb.pink,
+          onChanged: onTurnAlert,
+          title: Text('🔔 Son et vibration à mon tour', style: Pb.t(15, weight: 600)),
+          subtitle: Text('Jeux de société au tour par tour', style: Pb.t(13, color: Pb.muted)),
+        ),
         const SizedBox(height: 14),
         PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
 
