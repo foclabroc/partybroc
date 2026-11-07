@@ -478,7 +478,7 @@ class _SbrPlayState extends State<SbrPlay> {
         const Spacer(),
         _label('Ma main'),
         LayoutBuilder(builder: (context, cons) {
-          final w = math.min(64.0, (cons.maxWidth - 4 * 6) / 5);
+          final w = math.min(64.0, (cons.maxWidth - 5 * 6) / 5);
           return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             for (final (i, c) in hand.indexed)
               Padding(

@@ -497,7 +497,7 @@ class _ScrPlayState extends State<ScrPlay> {
     final used = {for (final p in _pend) p.i};
     final pending = {for (final p in _pend) '${p.r},${p.c}': (p.l ?? rack[p.i], p.l != null)};
 
-    return Padding(
+    return LayoutBuilder(builder: (context, outer) => Padding(
       padding: const EdgeInsets.fromLTRB(10, 40, 10, 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -518,8 +518,9 @@ class _ScrPlayState extends State<ScrPlay> {
         const SizedBox(height: 6),
         // Le plateau : on pince pour zoomer
         LayoutBuilder(builder: (context, cons) {
-          final s = cons.maxWidth;
-          return SizedBox(
+          // Carré, mais assez petit pour laisser la place au chevalet et aux boutons
+          final s = math.max(200.0, math.min(cons.maxWidth, outer.maxHeight - 320));
+          return Center(child: SizedBox(
             width: s,
             height: s,
             child: ClipRRect(
@@ -540,7 +541,7 @@ class _ScrPlayState extends State<ScrPlay> {
                 ),
               ),
             ),
-          );
+          ));
         }),
         const SizedBox(height: 4),
         Text('Pince le plateau pour zoomer', textAlign: TextAlign.center, style: Pb.t(11, color: Pb.muted)),
@@ -574,7 +575,7 @@ class _ScrPlayState extends State<ScrPlay> {
             boxShadow: const [BoxShadow(color: Colors.black38, offset: Offset(0, 3))],
           ),
           child: LayoutBuilder(builder: (context, cons) {
-            final s = math.min(46.0, (cons.maxWidth - 6 * 6) / 7);
+            final s = math.min(46.0, (cons.maxWidth - 7 * 6) / 7);
             return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               for (final i in _order)
                 if (i < rack.length)
@@ -669,7 +670,7 @@ class _ScrPlayState extends State<ScrPlay> {
           ),
         ),
       ]),
-    );
+    ));
   }
 
   Widget _act(String label, bool on, VoidCallback onTap) => Expanded(

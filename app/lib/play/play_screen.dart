@@ -468,7 +468,18 @@ class _PlayScreenState extends State<PlayScreen> {
   }
 
   // Jeux de société : petit bouton « 📖 Règles » en haut à gauche
-  Widget _play(RoomView room) => withRules(room.live?['id'] as String?, _playGame(room));
+  Widget _play(RoomView room) => withRules(room.live?['id'] as String?, _roomy(_playGame(room)));
+
+  // Écran trop court (iPhone avec les barres de Safari, ou l'écran du jeu affiché au-dessus dans un
+  // salon permanent) : le jeu garde une hauteur suffisante et on fait défiler, au lieu d'écraser les
+  // commandes (boutons et cartes du bas coupés, et qu'on ne peut plus toucher).
+  static const _minPlayHeight = 620.0;
+  Widget _roomy(Widget game) => LayoutBuilder(builder: (context, c) {
+        if (!c.hasBoundedHeight || c.maxHeight >= _minPlayHeight) return game;
+        return SingleChildScrollView(
+          child: SizedBox(height: _minPlayHeight, child: game),
+        );
+      });
 
   Widget _playGame(RoomView room) {
     final live = room.live;
