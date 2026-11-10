@@ -109,7 +109,8 @@ class TvWhoDone extends StatelessWidget {
       if (box.maxWidth >= 1000 || players.isEmpty) return _line(players, n);
       var size = ((box.maxWidth / players.length) - 8).clamp(30.0, 66.0);
       if (box.maxHeight.isFinite && size > box.maxHeight - 44) size = (box.maxHeight - 44).clamp(24.0, 66.0);
-      return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
+      // Avatars sur plusieurs rangées : le tout rétrécit plutôt que de déborder de la hauteur donnée
+      return FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.bottomLeft, child: SizedBox(width: box.maxWidth, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('$n/${players.length} $label', style: Pb.t(30, weight: 600, color: Pb.muted)),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 8, children: [
@@ -119,7 +120,7 @@ class TvWhoDone extends StatelessWidget {
               if (done.contains(p.pid)) Positioned(right: -4, bottom: -4, child: Text('✔️', style: TextStyle(fontSize: size * .38))),
             ]),
         ]),
-      ]);
+      ])));
     });
   }
 

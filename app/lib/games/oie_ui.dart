@@ -531,7 +531,10 @@ class OieTv extends StatelessWidget {
       // Les joueurs, du plus avancé au moins avancé
       Expanded(
         child: ClipRect(
-          child: Column(children: [
+          // Pendant un défi, la question prend de la place : la liste est coupée en bas sans erreur de débordement
+          child: SingleChildScrollView(
+            physics: const NeverScrollableScrollPhysics(),
+            child: Column(children: [
             for (final p in players)
               if (room.player(p['pid'] as String) case final pv?)
                 Container(
@@ -550,6 +553,7 @@ class OieTv extends StatelessWidget {
                   ]),
                 ),
           ]),
+          ),
         ),
       ),
       // Légende des cases spéciales

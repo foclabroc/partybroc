@@ -627,6 +627,9 @@ async function stop() {
   await db.close();
   process.exit(0);
 }
+// Filet de sécurité : une erreur imprévue est notée dans le journal au lieu d'arrêter le serveur pour tout le monde
+process.on('uncaughtException', (e) => console.error('[erreur non rattrapée]', e));
+process.on('unhandledRejection', (e) => console.error('[promesse rejetée]', e));
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
 

@@ -88,7 +88,11 @@ export class BaseGame {
     clearTimeout(this.timer);
     this.duration = ms;
     this.deadline = Date.now() + ms;
-    this.timer = setTimeout(() => { if (!this.over) fn(); }, ms);
+    this.timer = setTimeout(() => {
+      if (this.over) return;
+      // Une erreur dans un jeu ne doit pas faire tomber tout le serveur (tous les salons)
+      try { fn(); } catch (e) { console.error(`[jeu ${this.constructor.name}] erreur du minuteur :`, e); }
+    }, ms);
   }
 
   stop() {

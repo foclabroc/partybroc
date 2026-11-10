@@ -45,13 +45,26 @@ class JpTv extends StatelessWidget {
         picture: (size) => PbPhoto(id: live.s('img'), emoji: live.s('emoji') ?? '🛒', size: size.width, radius: 40),
         side: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           TvHeader(label: 'Objet', index: live.i('index'), count: live.i('count'), live: live),
-          const Spacer(),
-          Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(70, weight: 700, height: 1.1)),
-          const SizedBox(height: 8),
-          Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(40, color: Pb.muted)),
-          const SizedBox(height: 40),
-          Text('Combien ça coûte ?', textAlign: TextAlign.center, style: Pb.t(56, weight: 700, color: Pb.yellow)),
-          const Spacer(),
+          // Nom long sur plusieurs lignes : le texte rétrécit au lieu de déborder
+          Expanded(
+            child: LayoutBuilder(
+              builder: (_, box) => Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: box.maxWidth,
+                    child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Text(live.s('name') ?? '', textAlign: TextAlign.center, style: Pb.t(70, weight: 700, height: 1.1)),
+                      const SizedBox(height: 8),
+                      Text(live.s('detail') ?? '', textAlign: TextAlign.center, style: Pb.t(40, color: Pb.muted)),
+                      const SizedBox(height: 40),
+                      Text('Combien ça coûte ?', textAlign: TextAlign.center, style: Pb.t(56, weight: 700, color: Pb.yellow)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          ),
           TimeBar(endsIn: live.endsIn, duration: live.duration, height: 16),
           const SizedBox(height: 24),
           SizedBox(height: 90, child: TvWhoDone(room: room, done: live.pids('answered').toSet())),
