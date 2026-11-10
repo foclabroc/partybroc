@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -438,20 +439,27 @@ class _PlayScreenState extends State<PlayScreen> {
 
   // Salon permanent (joueurs à distance) : ce que montre la TV, en petit au-dessus des
   // commandes. Un appui le masque ou le réaffiche.
+  // L'écran rétrécit pour laisser au jeu sa hauteur (620 px) : les commandes du bas restent
+  // visibles sans avoir à faire défiler (au pire 110 px d'écran, et le jeu défile).
   Widget _withScreen(RoomView room, Widget play) {
-    return Column(children: [
+    return LayoutBuilder(builder: (context, c) => Column(children: [
       const SizedBox(height: 34),
       if (_showScreen)
         GestureDetector(
           onTap: () => _setShowScreen(false),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: PartyBackground(
-                  child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: tvGameView(room))),
+            child: Center(
+              child: SizedBox(
+                height: math.max(110.0, math.min((c.maxWidth - 20) * 9 / 16, c.maxHeight - 34 - _minPlayHeight)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: PartyBackground(
+                      child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: tvGameView(room))),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -464,7 +472,7 @@ class _PlayScreenState extends State<PlayScreen> {
           label: Text('Voir l’écran du jeu', style: Pb.t(15, weight: 600)),
         ),
       Expanded(child: play),
-    ]);
+    ]));
   }
 
   // Jeux de société : petit bouton « 📖 Règles » en haut à gauche
@@ -474,10 +482,13 @@ class _PlayScreenState extends State<PlayScreen> {
   // salon permanent) : le jeu garde une hauteur suffisante et on fait défiler, au lieu d'écraser les
   // commandes (boutons et cartes du bas coupés, et qu'on ne peut plus toucher).
   static const _minPlayHeight = 620.0;
+  // Toujours la même structure (SingleChildScrollView), quelle que soit la hauteur : si on passait
+  // de « game » à « défilement + game » quand le clavier s'ouvre (la hauteur baisse), le champ texte
+  // était reconstruit, perdait le focus et le clavier se refermait aussitôt (Dessin sur Android).
   Widget _roomy(Widget game) => LayoutBuilder(builder: (context, c) {
-        if (!c.hasBoundedHeight || c.maxHeight >= _minPlayHeight) return game;
+        if (!c.hasBoundedHeight) return game;
         return SingleChildScrollView(
-          child: SizedBox(height: _minPlayHeight, child: game),
+          child: SizedBox(height: math.max(c.maxHeight, _minPlayHeight), child: game),
         );
       });
 
