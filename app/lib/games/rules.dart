@@ -158,7 +158,7 @@ const gameRules = <String, (String, List<(String, List<String>)>)>{
       ]),
       ('Ta main', [
         'Glisse tes cartes pour les ranger comme tu veux. Les autres les voient de dos, en miroir (comme assis en face).',
-        'Quelqu’un hésite sur ta carte ? Elle se soulève en rouge sur ton téléphone : range-la ailleurs ou « Mélanger » pour brouiller les pistes !',
+        'Range ou mélange ta main avant que ce soit à ton voisin de piocher : pendant qu’il choisit chez toi, tes cartes sont figées (la carte qu’il vise se soulève en rouge sur ton téléphone).',
       ]),
       ('Fin de partie', [
         'Plus de cartes = sauvé ! Le premier sauvé gagne 1000 points, puis 150 de moins à chaque place.',

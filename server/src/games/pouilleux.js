@@ -213,6 +213,9 @@ export class PouilleuxGame extends BaseGame {
     this.podium(POU.podiumMs);
   }
 
+  // Celui chez qui on pioche ne peut plus toucher à l'ordre de sa main pendant que l'autre choisit
+  handLocked(pid) { return this.phase === 'turn' && this.target === pid; }
+
   onMessage(p, m) {
     switch (m.t) {
       case 'pou_hover': return this.setHover(p.pid, m.i);
@@ -220,6 +223,7 @@ export class PouilleuxGame extends BaseGame {
       case 'pou_order': {
         // Nouvel ordre de sa main : la liste des identifiants de ses cartes, toutes, une fois chacune
         const hand = this.hands.get(p.pid);
+        if (this.handLocked(p.pid)) return;
         if (!hand || !Array.isArray(m.ids) || m.ids.length !== hand.length) return;
         const byId = new Map(hand.map((c) => [c.id, c]));
         const next = m.ids.map((id) => byId.get(id));
@@ -229,7 +233,7 @@ export class PouilleuxGame extends BaseGame {
       }
       case 'pou_shuffle': {
         const hand = this.hands.get(p.pid);
-        if (!hand || hand.length < 2) return;
+        if (!hand || hand.length < 2 || this.handLocked(p.pid)) return;
         hand.splice(0, hand.length, ...shuffle(hand));
         this.event = { seq: ++this.seq, kind: 'shuffle', pid: p.pid };
         return this.changed();
@@ -253,11 +257,11 @@ export class PouilleuxGame extends BaseGame {
   }
 
   // ---------------------------------------------------------------- robots
-  // Le robot qui pioche hésite sur 1 à 3 places, puis prend la dernière. Le robot visé, s'il est
-  // Malin et a le valet de pique, mélange sa main (une fois par tour, 7 fois sur 10).
+  // Le robot qui pioche hésite sur 1 à 3 places, puis prend la dernière. Le robot Malin qui a le
+  // valet de pique mélange sa main quand c'est à lui de piocher (7 fois sur 10) : visé, il ne peut plus.
   botAction(pid, level) {
     if (this.phase !== 'turn') return null;
-    if (this.target === pid && level === 'malin' && this.hands.get(pid).some(isPouilleux)) {
+    if (this.current === pid && level === 'malin' && this.hands.get(pid).some(isPouilleux)) {
       const key = `${pid}:${this.turnSeq}`;
       this.botMixed ??= new Set();
       const mix = this.botMemo(`${key}:mix`, () => Math.random() < 0.7);

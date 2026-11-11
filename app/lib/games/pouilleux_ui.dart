@@ -628,7 +628,9 @@ class _PouPlayState extends State<PouPlay> {
       }
     }
     final same = ids.length == _order.length && ids.toSet().containsAll(_order);
-    if (_drag != null && same) return; // je range : on garde mon ordre jusqu'au lâcher
+    // Je range : on garde mon ordre jusqu'au lâcher… sauf si on se met à piocher chez moi (main figée)
+    final locked = live.phase == 'turn' && live.s('target') == me;
+    if (_drag != null && same && !locked) return;
     _drag = null;
     _order = ids;
   }
@@ -744,7 +746,7 @@ class _PouPlayState extends State<PouPlay> {
       } else if (savedRank != null) {
         msg = 'Tu as posé toutes tes cartes 🎉 Regarde qui sera le Pouilleux !';
       } else if (onMe && hover != null) {
-        msg = 'Il vise la carte soulevée en rouge : glisse-la ailleurs ou mélange !';
+        msg = 'Il vise la carte soulevée en rouge… Croise les doigts !';
       } else if (onMe) {
         msg = 'Il choisit une de tes cartes…';
       } else if (ph == 'deal') {
@@ -772,7 +774,8 @@ class _PouPlayState extends State<PouPlay> {
           Row(children: [
             Expanded(child: _label('Ma main · ${_hand.length} carte${_hand.length > 1 ? 's' : ''}')),
             TextButton.icon(
-              onPressed: _hand.length < 2
+              // Pendant qu'on pioche chez moi, ma main est figée (comme posée sur la table)
+              onPressed: _hand.length < 2 || onMe
                   ? null
                   : () {
                       HapticFeedback.selectionClick();
@@ -782,9 +785,10 @@ class _PouPlayState extends State<PouPlay> {
               label: Text('Mélanger', style: Pb.t(15, weight: 600)),
             ),
           ]),
-          _myHand(onMe ? hover : null),
+          _myHand(onMe ? hover : null, locked: onMe),
           const SizedBox(height: 4),
-          Text('Glisse tes cartes pour les ranger : les autres les voient de dos, en miroir', textAlign: TextAlign.center, style: Pb.t(12, color: Pb.muted)),
+          Text(onMe ? 'On pioche chez toi : tu ne peux plus bouger tes cartes' : 'Glisse tes cartes pour les ranger : les autres les voient de dos, en miroir',
+              textAlign: TextAlign.center, style: Pb.t(12, color: onMe ? Pb.pink : Pb.muted)),
         ],
       ]),
     );
@@ -792,7 +796,7 @@ class _PouPlayState extends State<PouPlay> {
 
   // ------------------------------------------------------------ ma main (glisser pour ranger)
 
-  Widget _myHand(int? threatened) {
+  Widget _myHand(int? threatened, {bool locked = false}) {
     final byId = {for (final c in _hand) c['id'] as int: c};
     final order = [for (final id in _order) if (byId.containsKey(id)) id];
     final n = order.length;
@@ -856,6 +860,7 @@ class _PouPlayState extends State<PouPlay> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onPanStart: (d) {
+            if (locked) return;
             final j = indexAt(d.localPosition);
             if (j < 0) return;
             HapticFeedback.selectionClick();
