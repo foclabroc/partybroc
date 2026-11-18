@@ -8,6 +8,7 @@ import 'turn_alert/turn_alert.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
+import '../games/blindtest_ui.dart';
 import '../games/rebus_ui.dart';
 import '../games/expressions_ui.dart';
 import '../games/dessin_ui.dart';
@@ -206,6 +207,8 @@ class _PlayScreenState extends State<PlayScreen> {
           _sfx.onRoom(m['room'] as Map<String, dynamic>);
           _voice.onRoom(m['room'] as Map<String, dynamic>);
         }
+        // Blind test : l'extrait aussi sur le téléphone des joueurs à distance
+        BtAudio.instance.onRoom(m['room'] as Map<String, dynamic>, enabled: _room!.perm && _phoneSfx);
       case 'draw':
         DrawBoard.instance.apply(m);
       case 'scr_preview':
@@ -541,6 +544,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'blindtest':
+        return BtPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'rebus':
         return RbsPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'expressions':

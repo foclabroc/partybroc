@@ -96,7 +96,9 @@ class SfxDirector {
     if (live == null || phase == null) return;
 
     final endsIn = (live['endsIn'] as num?)?.toInt() ?? 0;
-    if (_askPhases.contains(phase)) {
+    if (_askPhases.contains(phase) && live['id'] == 'blindtest') {
+      // Blind test : rien par-dessus l'extrait
+    } else if (_askPhases.contains(phase)) {
       Sfx.instance.play('whoosh', vol: .7);
       // tic-tac des 3 dernières secondes
       for (final s in [3, 2, 1]) {

@@ -75,6 +75,16 @@ class Music {
   Future<void> _start() async {
     final t = _want;
     if (t == null) return;
+    // « off » : silence (Blind test, l'extrait joue à la place)
+    if (t == 'off') {
+      _switching = true;
+      try {
+        await _player.stop();
+      } catch (_) {}
+      _switching = false;
+      _playing = 'off';
+      return;
+    }
     final list = playlists[t] ?? [t];
     final choices = list.length > 1 ? list.where((x) => x != _last).toList() : list;
     final track = choices[_rnd.nextInt(choices.length)];

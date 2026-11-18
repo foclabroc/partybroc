@@ -25,6 +25,7 @@ import { ScrabrocGame, SCR } from './scrabroc.js';
 import { PouilleuxGame, POU } from './pouilleux.js';
 import { TasGame, TAS } from './tas.js';
 import { LotoGame, LOTO } from './loto.js';
+import { BlindTestGame, BT, BT_CHOICES } from './blindtest.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -78,6 +79,13 @@ export const GAMES = [
   { id: 'expressions', title: 'Expressions à trous', emoji: '🗣️', min: 1, cat: 'fun', ready: true, impl: ExpressionsGame,
     pitch: 'Avoir un poil dans la… ? Trouve le mot qui manque !',
     options: { rounds: { label: 'Expressions', values: EXP.rounds, def: EXP.defaultRounds } } },
+  { id: 'blindtest', title: 'Blind test',      emoji: '🎵', min: 1, cat: 'fun', ready: true, impl: BlindTestGame,
+    pitch: 'Un extrait passe sur la TV : trouve l’artiste et le titre !',
+    options: {
+      playlist: { label: 'Musiques', values: BT_CHOICES, def: BT_CHOICES[0] },
+      rounds: { label: 'Extraits', values: BT.rounds, def: BT.defaultRounds },
+      listen: { label: 'Écoute', values: BT.listens, def: BT.defaultListen },
+    } },
   { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, cat: 'societe', ready: true, bots: true, impl: PiocheGame,
     pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',
     options: { cards: { label: 'Cartes en main', values: PCH.hands, def: PCH.defaultHand } } },

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../games/blindtest_ui.dart';
 import '../games/common_ui.dart';
 import '../games/draw_board.dart';
 import '../games/tv_game.dart';
@@ -50,7 +51,10 @@ class _TvScreenState extends State<TvScreen> {
     super.initState();
     // Bouton Accueil de la télécommande : la musique s'arrête, elle reprend au retour
     _life = AppLifecycleListener(
-      onHide: () => Music.instance.pause(),
+      onHide: () {
+        Music.instance.pause();
+        BtAudio.instance.stop();
+      },
       onResume: () {
         Music.instance.resume();
         _sock.kick();
@@ -173,7 +177,9 @@ class _TvScreenState extends State<TvScreen> {
         _voice.onRoom(m['room'] as Map<String, dynamic>);
         // Musique : « jeu » pendant une partie, « salon » au salon et au podium
         final live = _room!.live;
-        Music.instance.play(live != null && live['phase'] != 'podium' ? 'jeu' : 'salon');
+        // (Blind test : pas de musique de fond, c'est l'extrait qui joue)
+        Music.instance.play(live == null || live['phase'] == 'podium' ? 'salon' : (live['id'] == 'blindtest' ? 'off' : 'jeu'));
+        BtAudio.instance.onRoom(m['room'] as Map<String, dynamic>);
       case 'closed':
         // Salon fermé côté serveur : on en ouvre un neuf (ou on rouvre le permanent)
         _prefs?.remove('tv_code');
