@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.CAMERA" tools:node="remove"/>
 
     <application android:banner="@drawable/banner">
+        <!-- Dessin Skia (OpenGL) au lieu d'Impeller : l'écran clignotait sur la TV avec Impeller -->
+        <meta-data android:name="io.flutter.embedding.android.EnableImpeller" android:value="false"/>
         <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape">

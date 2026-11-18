@@ -18,6 +18,25 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         // La TV (et le téléphone du joueur) ne doit pas se mettre en veille pendant une partie
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // PartyBroc TV : écran en 1920 × 1080 (l'appli est dessinée pour cette taille ; en 4K, la
+        // TV devait dessiner 4 fois plus de points à chaque image)
+        if (packageName == "com.foclabroc.partybroc") prefer1080()
+    }
+
+    private fun prefer1080() {
+        if (Build.VERSION.SDK_INT < 23) return
+        try {
+            @Suppress("DEPRECATION")
+            val d = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
+            val cur = d.mode
+            if (cur.physicalHeight <= 1080) return
+            val best = d.supportedModes
+                .filter { it.physicalWidth == 1920 && it.physicalHeight == 1080 }
+                .minByOrNull { kotlin.math.abs(it.refreshRate - cur.refreshRate) } ?: return
+            window.attributes = window.attributes.also { it.preferredDisplayModeId = best.modeId }
+        } catch (_: Exception) {
+            // mode d'écran non disponible : on garde celui de la TV
+        }
     }
 
     // Mise à jour automatique : infos de l'appli et lancement de l'installateur Android
