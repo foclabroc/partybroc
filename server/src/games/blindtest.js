@@ -24,11 +24,13 @@ export const BT = fastTimings({
 
 // Playlists éditoriales de Deezer (France) ; Mélange = toutes
 export const BT_PLAYLISTS = [
+  { name: 'Années 70', sources: [{ playlist: 1470022445 }, { playlist: 821019291 }] },
   { name: 'Années 80', sources: [{ playlist: 867825522 }, { playlist: 791349661 }] },
   { name: 'Années 90', sources: [{ playlist: 878989033 }, { playlist: 1051470831 }] },
   { name: 'Années 2000', sources: [{ playlist: 11837091441 }, { playlist: 713806955 }] },
   { name: 'Années 2010', sources: [{ playlist: 715215865 }, { playlist: 1162725851 }] },
-  { name: 'Tubes du moment', sources: [{ chart: true }, { playlist: 13650084141 }] },
+  { name: 'Années 2020', sources: [{ playlist: 13650084141 }, { playlist: 1139670951 }] },
+  { name: 'Tubes du moment', sources: [{ playlist: 1109890291 }, { chart: true }] },
   { name: 'Chanson française', sources: [{ playlist: 700895155 }, { playlist: 1420459465 }] },
   // Disney : à gauche, le film plutôt que le chanteur (souvent un doubleur inconnu)
   { name: 'Disney', left: 'film', sources: [{ playlist: 613860315 }] },
