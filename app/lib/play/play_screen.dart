@@ -792,7 +792,10 @@ class _LobbyView extends StatelessWidget {
             for (final e in game.options.entries)
               Padding(
                 padding: const EdgeInsets.only(top: 4, bottom: 4),
-                child: Row(children: [
+                child: _manyValues(e.value)
+                    ? _OptionDropdown(label: e.value.label, values: e.value.values, value: room.options[e.key] ?? e.value.def,
+                        onChanged: (v) => send({'t': 'game_option', 'key': e.key, 'value': v}))
+                    : Row(children: [
                   Text(e.value.label, style: Pb.t(16, weight: 600, color: Pb.muted)),
                   const Spacer(),
                   for (final v in e.value.values)
@@ -1254,6 +1257,55 @@ class _NearbyRooms extends StatelessWidget {
         for (final c in mine)
           tile(code: c, title: c, sub: '🔒 Ton salon permanent', lead: const Text('🏠', style: TextStyle(fontSize: 30))),
       ]),
+    );
+  }
+}
+
+// Beaucoup de choix, ou des choix longs (playlists du Blind test) : une liste déroulante,
+// les puces ne tiendraient pas sur une ligne
+bool _manyValues(GameOption o) => o.values.length > 4 || o.values.fold<int>(0, (n, v) => n + '$v'.length) > 40;
+
+class _OptionDropdown extends StatelessWidget {
+  const _OptionDropdown({required this.label, required this.values, required this.value, required this.onChanged});
+  final String label;
+  final List<Object> values;
+  final Object value;
+  final ValueChanged<Object> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(label, style: Pb.t(16, weight: 600, color: Pb.muted)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(14)),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<Object>(
+                value: values.contains(value) ? value : values.first,
+                isExpanded: true,
+                dropdownColor: Pb.bg2,
+                borderRadius: BorderRadius.circular(14),
+                iconEnabledColor: Pb.pink,
+                menuMaxHeight: 420,
+                style: Pb.t(16, weight: 600),
+                items: [
+                  for (final v in values)
+                    DropdownMenuItem(
+                      value: v,
+                      child: Text('$v', overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (v) {
+                  if (v != null) onChanged(v);
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

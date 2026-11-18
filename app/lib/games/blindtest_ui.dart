@@ -116,10 +116,18 @@ class _BtDiscState extends State<BtDisc> with SingleTickerProviderStateMixin {
   }
 
   @override
+  // Le disque est dessiné une seule fois (RepaintBoundary sous la rotation) : chaque image
+  // ne fait que le tourner. Avant, il était redessiné 60 fois par seconde (sillons, reflets,
+  // ombre floue), trop lourd pour la TV.
   Widget build(BuildContext context) => RepaintBoundary(
-        child: SizedBox.square(
-          dimension: widget.size,
-          child: RotationTransition(turns: _c, child: CustomPaint(painter: _DiscPainter())),
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          decoration: const BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 30, offset: Offset(0, 14))]),
+          child: RotationTransition(
+            turns: _c,
+            child: RepaintBoundary(child: CustomPaint(painter: _DiscPainter(), size: Size.square(widget.size))),
+          ),
         ),
       );
 }
@@ -129,7 +137,6 @@ class _DiscPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final r = size.width / 2;
-    canvas.drawCircle(c + Offset(0, r * .04), r, Paint()..color = Colors.black54..maskFilter = MaskFilter.blur(BlurStyle.normal, r * .08));
     canvas.drawCircle(c, r, Paint()..color = const Color(0xFF16161A));
     final groove = Paint()
       ..style = PaintingStyle.stroke
@@ -177,25 +184,35 @@ class _BtEqualizerState extends State<BtEqualizer> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
-        child: SizedBox(
-          height: widget.height,
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (_, _) => Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end, children: [
-              for (var i = 0; i < widget.bars; i++)
-                Container(
-                  width: widget.barWidth,
-                  margin: EdgeInsets.only(right: widget.barWidth * .45),
-                  height: widget.height * (.18 + .82 * (.5 + .5 * math.sin(_c.value * math.pi * 2 * (5 + i % 4) + i * 1.7)).abs()),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(widget.barWidth / 3),
-                    gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Pb.pink, Pb.cyan]),
-                  ),
-                ),
-            ]),
-          ),
+        child: CustomPaint(
+          size: Size(widget.bars * widget.barWidth * 1.45, widget.height),
+          painter: _EqPainter(_c, widget.bars, widget.barWidth),
         ),
       );
+}
+
+class _EqPainter extends CustomPainter {
+  _EqPainter(this.t, this.bars, this.w) : super(repaint: t);
+  final Animation<double> t;
+  final int bars;
+  final double w;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..shader = const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Pb.pink, Pb.cyan])
+          .createShader(Offset.zero & size);
+    for (var i = 0; i < bars; i++) {
+      final h = size.height * (.18 + .82 * (.5 + .5 * math.sin(t.value * math.pi * 2 * (5 + i % 4) + i * 1.7)).abs());
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromLTWH(i * w * 1.45, size.height - h, w, h), Radius.circular(w / 3)),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_EqPainter old) => false;
 }
 
 /// Pochette de l'album (révélation) ; disque si elle ne charge pas
