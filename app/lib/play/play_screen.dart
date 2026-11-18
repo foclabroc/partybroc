@@ -440,39 +440,52 @@ class _PlayScreenState extends State<PlayScreen> {
   // Salon permanent (joueurs à distance) : ce que montre la TV, en petit au-dessus des
   // commandes. Un appui le masque ou le réaffiche.
   // L'écran rétrécit pour laisser au jeu sa hauteur (620 px) : les commandes du bas restent
-  // visibles sans avoir à faire défiler (au pire 110 px d'écran, et le jeu défile).
+  // visibles sans avoir à faire défiler (au pire 110 px d'écran). S'il n'y a quand même pas la
+  // place, **toute la page** défile (écran compris) : avant, seul le jeu défilait, et un doigt posé
+  // sur l'écran du jeu ne faisait rien (« le défilement ne marche pas toujours » sur iPhone).
+  // Le jeu reçoit alors au moins 620 px : son propre défilement (`_roomy`) n'a plus rien à faire.
+  // Structure toujours identique (clavier du Dessin, voir `_roomy`).
   Widget _withScreen(RoomView room, Widget play) {
-    return LayoutBuilder(builder: (context, c) => Column(children: [
-      const SizedBox(height: 34),
-      if (_showScreen)
-        GestureDetector(
-          onTap: () => _setShowScreen(false),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Center(
-              child: SizedBox(
-                height: math.max(110.0, math.min((c.maxWidth - 20) * 9 / 16, c.maxHeight - 34 - _minPlayHeight)),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: PartyBackground(
-                      child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: tvGameView(room))),
+    return LayoutBuilder(builder: (context, c) {
+      final screenH = math.max(110.0, math.min((c.maxWidth - 20) * 9 / 16, c.maxHeight - 34 - _minPlayHeight));
+      final topH = 34 + (_showScreen ? screenH : 48.0);
+      return SingleChildScrollView(
+        child: Column(children: [
+          const SizedBox(height: 34),
+          if (_showScreen)
+            GestureDetector(
+              onTap: () => _setShowScreen(false),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Center(
+                  child: SizedBox(
+                    height: screenH,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: PartyBackground(
+                          child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: tvGameView(room))),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
+            )
+          else
+            SizedBox(
+              height: 48,
+              child: TextButton.icon(
+                onPressed: () => _setShowScreen(true),
+                icon: const Icon(Icons.tv_rounded, size: 18),
+                label: Text('Voir l’écran du jeu', style: Pb.t(15, weight: 600)),
+              ),
             ),
-          ),
-        )
-      else
-        TextButton.icon(
-          onPressed: () => _setShowScreen(true),
-          icon: const Icon(Icons.tv_rounded, size: 18),
-          label: Text('Voir l’écran du jeu', style: Pb.t(15, weight: 600)),
-        ),
-      Expanded(child: play),
-    ]));
+          SizedBox(height: math.max(c.maxHeight - topH, _minPlayHeight), child: play),
+        ]),
+      );
+    });
   }
 
   // Jeux de société : petit bouton « 📖 Règles » en haut à gauche

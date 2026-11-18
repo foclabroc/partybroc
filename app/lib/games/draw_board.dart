@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// Couleurs du dessin (même nombre que côté serveur : 12)
@@ -225,41 +226,68 @@ class _DrawPadState extends State<DrawPad> {
   (int, int) _pt(Offset local, double side) =>
       ((local.dx / side * 1000).round().clamp(0, 1000), (local.dy / side * 1000).round().clamp(0, 1000));
 
+  double _side = 1;
+
+  void _onStart(DragStartDetails d) {
+    _send();
+    final (x, y) = _pt(d.localPosition, _side);
+    _cur = Stroke(_nextId++, widget.color, widget.width);
+    _board.localStart(_cur!);
+    _board.localAdd(_cur!, x, y);
+    _pending..add(x)..add(y);
+  }
+
+  void _onUpdate(DragUpdateDetails d) {
+    final s = _cur;
+    if (s == null) return;
+    final (x, y) = _pt(d.localPosition, _side);
+    // On saute les points trop proches (moins de données à envoyer)
+    final n = s.pts.length;
+    if (n >= 2 && (s.pts[n - 2] - x).abs() + (s.pts[n - 1] - y).abs() < 4) return;
+    _board.localAdd(s, x, y);
+    _pending..add(x)..add(y);
+  }
+
+  void _onEnd(DragEndDetails _) {
+    _send();
+    _cur = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 1,
       child: LayoutBuilder(builder: (context, c) {
-        final side = c.maxWidth;
+        _side = c.maxWidth;
         return ClipRRect(
           borderRadius: BorderRadius.circular(18),
-          child: GestureDetector(
-            onPanStart: (d) {
-              _send();
-              final (x, y) = _pt(d.localPosition, side);
-              _cur = Stroke(_nextId++, widget.color, widget.width);
-              _board.localStart(_cur!);
-              _board.localAdd(_cur!, x, y);
-              _pending..add(x)..add(y);
-            },
-            onPanUpdate: (d) {
-              final s = _cur;
-              if (s == null) return;
-              final (x, y) = _pt(d.localPosition, side);
-              // On saute les points trop proches (moins de données à envoyer)
-              final n = s.pts.length;
-              if (n >= 2 && (s.pts[n - 2] - x).abs() + (s.pts[n - 1] - y).abs() < 4) return;
-              _board.localAdd(s, x, y);
-              _pending..add(x)..add(y);
-            },
-            onPanEnd: (_) {
-              _send();
-              _cur = null;
+          // Glisser « gourmand » : le trait est à nous dès que le doigt touche le carré. Avec un
+          // GestureDetector normal, la page qui défile (écran trop court, salon permanent) gagnait
+          // les gestes verticaux avant le dessin : impossible de dessiner sur certains téléphones.
+          child: RawGestureDetector(
+            gestures: {
+              _EagerPan: GestureRecognizerFactoryWithHandlers<_EagerPan>(
+                () => _EagerPan(),
+                (r) => r
+                  ..dragStartBehavior = DragStartBehavior.down
+                  ..onStart = _onStart
+                  ..onUpdate = _onUpdate
+                  ..onEnd = _onEnd,
+              ),
             },
             child: RepaintBoundary(child: CustomPaint(painter: DrawPainter(_board), size: Size.infinite)),
           ),
         );
       }),
     );
+  }
+}
+
+// Glisser qui gagne tout de suite (dès l'appui) contre le défilement de la page.
+class _EagerPan extends PanGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolvePointer(event.pointer, GestureDisposition.accepted);
   }
 }
