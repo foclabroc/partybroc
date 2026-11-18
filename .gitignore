@@ -16,3 +16,6 @@ app/.idea/
 *.keystore
 key.properties
 __pycache__/
+
+# Clé TMDB (Quiz cinéma)
+tmdb.key

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../games/calcul_ui.dart';
 import '../games/blindtest_ui.dart';
+import '../games/cine_ui.dart';
 import '../games/rebus_ui.dart';
 import '../games/expressions_ui.dart';
 import '../games/dessin_ui.dart';
@@ -544,6 +545,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'cine':
+        return CinePlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'blindtest':
         return BtPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'rebus':

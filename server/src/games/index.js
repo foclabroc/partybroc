@@ -26,6 +26,7 @@ import { PouilleuxGame, POU } from './pouilleux.js';
 import { TasGame, TAS } from './tas.js';
 import { LotoGame, LOTO } from './loto.js';
 import { BlindTestGame, BT, BT_CHOICES } from './blindtest.js';
+import { CineGame, CINE, CINE_CHOICES, CINE_HINTS } from './cine.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -85,6 +86,14 @@ export const GAMES = [
       playlist: { label: 'Musiques', values: BT_CHOICES, def: BT_CHOICES[0] },
       rounds: { label: 'Extraits', values: BT.rounds, def: BT.defaultRounds },
       listen: { label: 'Écoute', values: BT.listens, def: BT.defaultListen },
+    } },
+  { id: 'cine',      title: 'Quiz cinéma',     emoji: '🎬', min: 1, cat: 'fun', ready: true, impl: CineGame,
+    pitch: 'Une scène de film sur la TV : trouve le titre sur ton téléphone !',
+    options: {
+      categorie: { label: 'Films', values: CINE_CHOICES, def: CINE_CHOICES[0] },
+      rounds: { label: 'Images', values: CINE.rounds, def: CINE.defaultRounds },
+      temps: { label: 'Temps', values: CINE.times, def: CINE.defaultTime },
+      indice: { label: 'Indice', values: CINE_HINTS, def: 'Avec' },
     } },
   { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, cat: 'societe', ready: true, bots: true, impl: PiocheGame,
     pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',
