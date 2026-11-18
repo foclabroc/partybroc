@@ -19,6 +19,7 @@ import '../games/party_ui.dart';
 import '../net.dart';
 import '../theme.dart';
 import '../widgets/avatar.dart';
+import 'preload.dart';
 import 'tv_keys.dart';
 import 'update/update.dart';
 
@@ -70,6 +71,10 @@ class _TvScreenState extends State<TvScreen> {
     SharedPreferences.getInstance().then((p) {
       _prefs = p;
       _sock.connect();
+    });
+    // Chargement de tout ce qui peut l'être (sons, cartes, photos…), avec barre de progression
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Preload.instance.run(context);
     });
     Sfx.instance.init();
     Voice.instance.init();
@@ -271,7 +276,14 @@ class _TvScreenState extends State<TvScreen> {
       },
       // Télécommande : flèches = changer de bouton, OK = appuyer (aussi dans un navigateur)
       child: TvKeys(
-        child: _content(),
+        child: ValueListenableBuilder<bool>(
+          valueListenable: Preload.instance.done,
+          builder: (_, done, child) => Stack(children: [
+            child!,
+            if (!done) const Positioned.fill(child: PartyBackground(child: FittedBox(child: SizedBox(width: 1920, height: 1080, child: PreloadView())))),
+          ]),
+          child: _content(),
+        ),
       ),
     );
   }

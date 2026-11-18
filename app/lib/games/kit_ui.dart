@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models.dart';
-import '../net.dart';
 import '../theme.dart';
+import '../tv/preload.dart';
 import '../widgets/avatar.dart';
 import 'common_ui.dart';
 
@@ -38,8 +38,8 @@ class PbPhoto extends StatelessWidget {
     if (id == null || id.isEmpty) return fallback();
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius ?? size * .12),
-      child: Image.network(
-        photoUrl('/img/$id'),
+      child: Image(
+        image: Preload.instance.photo(id),
         width: size,
         height: size,
         fit: BoxFit.cover,

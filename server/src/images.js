@@ -40,3 +40,13 @@ export const imgId = (key) => byKey.get(key) ?? null;
 
 /** Fichier d'une photo d'après son identifiant (route /img/<id>) */
 export const imgFile = (id) => byId.get(id) ?? null;
+
+/** Tous les identifiants, mélangés (l'ordre ne trahit pas les dossiers) */
+export function allImgIds() {
+  const ids = [...byId.keys()];
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return ids;
+}

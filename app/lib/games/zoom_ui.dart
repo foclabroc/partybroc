@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../models.dart';
-import '../net.dart';
 import '../theme.dart';
+import '../tv/preload.dart';
 import '../widgets/countdown.dart';
 import 'common_ui.dart';
 import 'kit_ui.dart';
@@ -95,7 +95,7 @@ class _ZoomPictureState extends State<ZoomPicture> with SingleTickerProviderStat
       _raster();
       return;
     }
-    final stream = NetworkImage(photoUrl('/img/$id')).resolve(ImageConfiguration.empty);
+    final stream = Preload.instance.photo(id).resolve(ImageConfiguration.empty);
     _listener = ImageStreamListener((info, _) {
       if (!mounted || widget.img != id) return;
       setState(() {

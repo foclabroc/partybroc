@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { config } from './config.js';
-import { imgFile, loadImages } from './images.js';
+import { imgFile, loadImages, allImgIds } from './images.js';
 import { db } from './db.js';
 import {
   RoomManager, send, cleanName, cleanEmoji, decodePhoto, gameById, COLORS,
@@ -89,6 +89,14 @@ function handleHttp(req, res) {
       'x-content-type-options': 'nosniff',
     });
     res.end(p.photo.buf);
+    return;
+  }
+
+  // Liste des photos des jeux (identifiants seulement, jamais les noms) : l'écran TV les
+  // télécharge à l'ouverture pour ne pas attendre pendant les parties
+  if (url.pathname === '/img-list') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' });
+    res.end(JSON.stringify({ ids: allImgIds() }));
     return;
   }
 
