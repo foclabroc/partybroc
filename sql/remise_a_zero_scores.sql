@@ -8,7 +8,7 @@
 --   nssm start partybroc
 --
 -- Remis à zéro : score total et nombre de parties de chaque joueur des salons permanents,
--- statistiques par jeu (victoires, records, parties). Rien d'autre n'est supprimé.
+-- statistiques par jeu (victoires, records, parties), scores du jour. Rien d'autre n'est supprimé.
 
 \set ON_ERROR_STOP on
 SET client_encoding = 'UTF8';
@@ -21,6 +21,9 @@ DO $$
 BEGIN
   IF to_regclass('pb.pb_room_stats') IS NOT NULL THEN
     DELETE FROM pb.pb_room_stats;
+  END IF;
+  IF to_regclass('pb.pb_room_days') IS NOT NULL THEN
+    DELETE FROM pb.pb_room_days;
   END IF;
 END $$;
 

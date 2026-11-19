@@ -385,22 +385,37 @@ class PermStatsView extends StatelessWidget {
           return g == null ? id : '${g.emoji} ${g.title}';
         })();
     final s = scale;
-    final board = <Widget>[
-      Text('🏆 Classement de tous les temps', style: Pb.t(20 * s, weight: 700)),
-      SizedBox(height: 8 * s),
-      if (members.isEmpty) Text('Personne n’a encore joué ici.', style: Pb.t(15 * s, color: Pb.muted)),
-      for (final (i, m) in members.take(10).indexed)
-        Padding(
+    final today = [for (final m in (stats['today'] as List? ?? const [])) m as Map<String, dynamic>];
+    Widget row(int i, Map<String, dynamic> m, String detail) => Padding(
           padding: EdgeInsets.only(bottom: 6 * s),
           child: Row(children: [
             SizedBox(width: 34 * s, child: Text(i == 0 ? '👑' : '${i + 1}.', style: Pb.t(16 * s, weight: 700, color: Pb.muted))),
             PbAvatar(size: 32 * s, emoji: m['emoji'] as String? ?? '🙂', color: (m['color'] as num?)?.toInt() ?? 0),
             SizedBox(width: 10 * s),
             Expanded(child: Text(m['name'] as String? ?? '?', maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(16 * s, weight: 600))),
-            Text('${m['games']} partie${(m['games'] as num? ?? 0) > 1 ? 's' : ''}  ', style: Pb.t(13 * s, color: Pb.muted)),
+            Text('$detail  ', style: Pb.t(13 * s, color: Pb.muted)),
             Text(Pb.pts(m['score'] as num? ?? 0), style: Pb.t(16 * s, weight: 700, color: Pb.yellow)),
           ]),
-        ),
+        );
+    String parties(num? n) => '${n ?? 0} partie${(n ?? 0) > 1 ? 's' : ''}';
+    // Classement du jour (la journée commence à 6 h) : tout le monde repart de zéro chaque jour
+    final day = <Widget>[
+      Text('📅 Classement du jour', style: Pb.t(20 * s, weight: 700)),
+      SizedBox(height: 8 * s),
+      if (today.isEmpty) Text('Personne n’a encore joué aujourd’hui.', style: Pb.t(15 * s, color: Pb.muted)),
+      for (final (i, m) in today.take(10).indexed) row(i, m, parties(m['games'] as num?)),
+    ];
+    final board = <Widget>[
+      Text('🏆 Classement de tous les temps', style: Pb.t(20 * s, weight: 700)),
+      SizedBox(height: 8 * s),
+      if (members.isEmpty) Text('Personne n’a encore joué ici.', style: Pb.t(15 * s, color: Pb.muted)),
+      for (final (i, m) in members.take(10).indexed)
+        row(i, m, [
+          if ((m['days'] as num? ?? 0) > 0) '🌟 ${m['days']} jour${(m['days'] as num) > 1 ? 's' : ''}',
+          parties(m['games'] as num?),
+        ].join(' · ')),
+      if (members.any((m) => (m['days'] as num? ?? 0) > 0))
+        Text('🌟 = journées terminées en 1re place', style: Pb.t(12 * s, color: Pb.muted)),
     ];
     final champions = <Widget>[
         Text('🥇 Champions par jeu', style: Pb.t(20 * s, weight: 700)),
@@ -421,11 +436,13 @@ class PermStatsView extends StatelessWidget {
     Widget col(List<Widget> c) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: c);
     if (wide) {
       return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(child: col(day)),
+        SizedBox(width: 30 * s),
         Expanded(child: col(board)),
         SizedBox(width: 30 * s),
         Expanded(child: col(champions)),
       ]);
     }
-    return col([...board, SizedBox(height: 14 * s), ...champions]);
+    return col([...day, SizedBox(height: 14 * s), ...board, SizedBox(height: 14 * s), ...champions]);
   }
 }

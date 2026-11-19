@@ -125,7 +125,27 @@ export const db = {
     await q(`update pb.pb_room_members set name = $3, emoji = $4, color = $5, score = $6,
                games = games + $7, last_seen_at = now()
              where code = $1 and member_id = $2`,
-      [code, p.pid, p.name, p.emoji, p.color, p.score, playedGame ? 1 : 0]);
+      [code, p.pid, p.name, p.emoji, p.color, p.total ?? p.score, playedGame ? 1 : 0]);
+  },
+
+  // ---- scores du jour des salons permanents (sql/15_jours.sql) ----
+  // Points du joueur ce jour-là (0 si rien, ou si la table n'existe pas encore)
+  async memberDay(code, mid, day) {
+    const r = await q('select score from pb.pb_room_days where code = $1 and member_id = $2 and day = $3', [code, mid, day]);
+    return r && r.rows[0] ? Number(r.rows[0].score) : 0;
+  },
+
+  // results : [{pid, score, rank}] d'une partie
+  async daySaved(code, day, results) {
+    for (const r of results) {
+      await q(`insert into pb.pb_room_days (code, member_id, day, score, games, wins)
+               values ($1, $2, $3, $4, 1, $5)
+               on conflict (code, member_id, day) do update set
+                 score = pb_room_days.score + excluded.score,
+                 games = pb_room_days.games + 1,
+                 wins = pb_room_days.wins + excluded.wins`,
+        [code, r.pid, day, Math.max(0, Math.round(r.score)), r.rank === 1 && r.score > 0 ? 1 : 0]);
+    }
   },
 
   // ---- statistiques des salons permanents (sql/10_stats.sql) ----
@@ -143,8 +163,8 @@ export const db = {
     }
   },
 
-  // Classement de tous les temps + champion de chaque jeu
-  async permStats(code) {
+  // Classement du jour, de tous les temps (+ jours gagnés) et champion de chaque jeu
+  async permStats(code, day) {
     const m = await q(`select member_id, name, emoji, color, score, games from pb.pb_room_members
                        where code = $1 order by score desc, games desc limit 30`, [code]);
     const g = await q(`select distinct on (s.game) s.game, s.wins, s.best, s.played, m.name, m.emoji, m.color
@@ -153,9 +173,22 @@ export const db = {
                        order by s.game, s.wins desc, s.best desc`, [code]);
     const tot = await q(`select game, sum(played)::int as played from pb.pb_room_stats where code = $1 group by game`, [code]);
     if (!m || !g || !tot) return null;
+    // Sans sql/15_jours.sql : pas de classement du jour (q renvoie null)
+    const t = await q(`select d.member_id, d.score, d.games, d.wins, m.name, m.emoji, m.color
+                       from pb.pb_room_days d join pb.pb_room_members m using (code, member_id)
+                       where d.code = $1 and d.day = $2 and d.games > 0
+                       order by d.score desc, d.wins desc limit 30`, [code, day]);
+    // Jours gagnés : meilleur score d'une journée finie (ex aequo compris)
+    const w = await q(`select member_id, count(*)::int as days from (
+                         select member_id, rank() over (partition by day order by score desc) as rk
+                         from pb.pb_room_days where code = $1 and day < $2 and score > 0) x
+                       where rk = 1 group by member_id`, [code, day]);
+    const days = Object.fromEntries((w?.rows ?? []).map((r) => [r.member_id, r.days]));
     const played = Object.fromEntries(tot.rows.map((r) => [r.game, r.played]));
     return {
-      members: m.rows.map((r) => ({ id: r.member_id, name: r.name, emoji: r.emoji, color: r.color, score: Number(r.score), games: r.games })),
+      day,
+      today: (t?.rows ?? []).map((r) => ({ id: r.member_id, name: r.name, emoji: r.emoji, color: r.color, score: Number(r.score), games: r.games, wins: r.wins })),
+      members: m.rows.map((r) => ({ id: r.member_id, name: r.name, emoji: r.emoji, color: r.color, score: Number(r.score), games: r.games, days: days[r.member_id] || 0 })),
       champions: g.rows.map((r) => ({ game: r.game, wins: r.wins, best: Number(r.best), name: r.name, emoji: r.emoji, color: r.color, played: played[r.game] || 0 })),
     };
   },

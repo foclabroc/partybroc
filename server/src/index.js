@@ -247,6 +247,9 @@ async function permJoin(ws, code, m) {
     mtoken = newToken();
     await db.memberToken(code, member.member_id, sha(mtoken));
   }
+  // Score affiché = points du jour ; le total de tous les temps est gardé à part (p.total)
+  room.checkDay();
+  const today = room.players.has(member.member_id) ? 0 : await db.memberDay(code, member.member_id, room.day);
   let p = room.players.get(member.member_id);
   if (p) {
     // Déjà dans le salon (autre onglet, retour pendant la partie) : on reprend sa place
@@ -254,7 +257,8 @@ async function permJoin(ws, code, m) {
     Object.assign(p, { name: profile.name, emoji: profile.emoji, color: profile.color });
     if (profile.photo) { p.photo = profile.photo; p.photoV++; }
   } else {
-    try { p = room.addPlayer(profile, member.member_id, Number(member.score) || 0); } catch (e) { return err(ws, e.message, 'refused'); }
+    try { p = room.addPlayer(profile, member.member_id, today); } catch (e) { return err(ws, e.message, 'refused'); }
+    p.total = Number(member.score) || 0;
     console.log(`[salon] ${room.code} + ${p.name} (membre)`);
   }
   db.memberSaved(code, p);
@@ -489,7 +493,7 @@ const handlers = {
   async perm_stats(ws) {
     const { room } = ws.ctx;
     if (!room?.perm || !allow(ws, 'stats', 3, 5_000)) return;
-    const st = await db.permStats(room.code);
+    const st = await db.permStats(room.code, room.day);
     if (st) send(ws, { t: 'perm_stats', ...st });
   },
 

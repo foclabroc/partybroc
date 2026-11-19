@@ -29,6 +29,13 @@ function newCode(taken) {
 }
 
 // Pseudo : on enlève les caractères invisibles et les espaces en trop
+// Jour de jeu des salons permanents (classement du jour) : date à Paris, la journée commence à 6 h
+// (une soirée qui passe minuit compte pour la veille). Format AAAA-MM-JJ.
+export function partyDay(now = Date.now()) {
+  return new Intl.DateTimeFormat('fr-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(now - 6 * 3600e3));
+}
+
 export function cleanName(raw) {
   if (typeof raw !== 'string') return '';
   const s = raw.normalize('NFC')
@@ -102,6 +109,7 @@ export class Room {
   constructor(code, perm = false) {
     this.code = code;
     this.perm = perm;               // salon permanent (mot de passe, joueurs gardés en base)
+    this.day = partyDay();          // salon permanent : jour du score affiché (score du jour)
     this.tvToken = rid(16);
     this.tvs = new Set();           // écrans connectés (la TV, et l'écran de chaque famille à distance)
     this.players = new Map();       // pid -> Player
@@ -155,7 +163,17 @@ export class Room {
     };
   }
 
+  // Salon permanent : nouveau jour (6 h du matin) → les scores du jour repartent de zéro
+  checkDay() {
+    if (!this.perm) return;
+    const d = partyDay();
+    if (d === this.day) return;
+    this.day = d;
+    for (const p of [...this.players.values(), ...this.bench.values()]) p.score = 0;
+  }
+
   broadcast() {
+    if (this.perm && !this.game) this.checkDay();
     const room = JSON.stringify(this.view());
     for (const tv of this.tvs) send(tv, `{"t":"room","room":${room}}`);
     for (const p of this.players.values()) {
@@ -447,11 +465,15 @@ export class Room {
     this.clearBots();
     // Les robots ne vont ni dans les statistiques ni dans les membres du salon permanent
     const humans = (results || []).filter((r) => !this.isBot(r.pid));
-    // Les points de la partie s'ajoutent au score de la soirée
+    // Les points de la partie s'ajoutent au score de la soirée (salon permanent : score du jour + total)
+    this.checkDay();
     for (const r of results || []) {
       const p = this.players.get(r.pid);
-      if (p) p.score += r.score;
+      if (!p) continue;
+      p.score += r.score;
+      if (p.total !== undefined) p.total += r.score;
     }
+    if (this.perm) db.daySaved(this.code, this.day, humans);
     db.gameSaved(this.partyId, this.gameId, this.gameStartedAt, results || []);
     if (this.teams.on) this.lastTeams = { game: this.gameId, pts: this.teamTotals(results) };
     if (this.perm) db.statsSaved(this.code, this.gameId, humans);

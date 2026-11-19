@@ -74,7 +74,7 @@ class _PlayScreenState extends State<PlayScreen> {
   Profile _profile = Profile();
   late final _code = TextEditingController(text: (widget.initialCode ?? '').toUpperCase());
   final _pw = TextEditingController();
-  bool _showScreen = true; // salon permanent : l'écran du jeu aussi sur le téléphone
+  bool _showScreen = false; // salon permanent : l'écran du jeu aussi sur le téléphone (masqué à chaque début de partie)
   bool _phoneSfx = true; // salon permanent : les bruitages de la TV aussi sur le téléphone
   final _sfx = SfxDirector();
   final _voice = VoiceDirector();
@@ -107,7 +107,6 @@ class _PlayScreenState extends State<PlayScreen> {
     final prefs = await SharedPreferences.getInstance();
     _prefs = prefs;
     _profile = await Profile.load(prefs);
-    _showScreen = prefs.getBool('show_screen') ?? true;
     _phoneSfx = prefs.getBool('phone_sfx') ?? true;
     TurnAlert.instance.enabled = prefs.getBool('turn_alert') ?? true;
     _sCode = prefs.getString('s_code');
@@ -195,8 +194,11 @@ class _PlayScreenState extends State<PlayScreen> {
         HapticFeedback.mediumImpact();
         setState(() => _step = _Step.lobby);
       case 'room':
+        final wasLive = _room?.live != null;
         setState(() {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
+          // Début de partie : l'écran du jeu est masqué (bouton « Voir l'écran du jeu » pour l'afficher)
+          if (!wasLive && _room!.live != null) _showScreen = false;
           _you = m['you'] as Map<String, dynamic>?;
         });
         // « À toi de jouer ! » : son et vibration quand c'est mon tour
@@ -387,8 +389,6 @@ class _PlayScreenState extends State<PlayScreen> {
           onEdit: _editProfile,
           onLeave: _leave,
           send: _sock.send,
-          showScreen: _showScreen,
-          onShowScreen: _setShowScreen,
           phoneSfx: _phoneSfx,
           turnAlert: TurnAlert.instance.enabled,
           onTurnAlert: (v) {
@@ -402,7 +402,7 @@ class _PlayScreenState extends State<PlayScreen> {
     }
   }
 
-  // Classement de tous les temps du salon permanent
+  // Classements du salon permanent (du jour, de tous les temps, champions)
   void _openStats() {
     _stats.value = null;
     _sock.send({'t': 'perm_stats'});
@@ -437,7 +437,6 @@ class _PlayScreenState extends State<PlayScreen> {
   }
 
   void _setShowScreen(bool v) {
-    _prefs?.setBool('show_screen', v);
     setState(() => _showScreen = v);
   }
 
@@ -697,8 +696,6 @@ class _LobbyView extends StatelessWidget {
     required this.onEdit,
     required this.onLeave,
     required this.send,
-    required this.showScreen,
-    required this.onShowScreen,
     required this.phoneSfx,
     required this.onPhoneSfx,
     required this.turnAlert,
@@ -708,8 +705,8 @@ class _LobbyView extends StatelessWidget {
 
   final VoidCallback onStats;
 
-  final bool showScreen, phoneSfx, turnAlert;
-  final ValueChanged<bool> onShowScreen, onPhoneSfx, onTurnAlert;
+  final bool phoneSfx, turnAlert;
+  final ValueChanged<bool> onPhoneSfx, onTurnAlert;
   final RoomView room;
   final String? myPid;
   final VoidCallback onEdit;
@@ -722,104 +719,98 @@ class _LobbyView extends StatelessWidget {
     final isHost = myPid != null && room.hostPid == myPid;
     final game = room.game;
 
+    Widget option(MapEntry<String, GameOption> e) => _manyValues(e.value)
+        ? _OptionDropdown(label: e.value.label, values: e.value.values, value: room.options[e.key] ?? e.value.def,
+            onChanged: (v) => send({'t': 'game_option', 'key': e.key, 'value': v}))
+        : Row(children: [
+            Text(e.value.label, style: Pb.t(16, weight: 600, color: Pb.muted)),
+            const Spacer(),
+            for (final v in e.value.values)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: ChoiceChip(
+                  label: Text('$v', style: Pb.t(15, weight: 600)),
+                  selected: room.options[e.key] == v,
+                  showCheckmark: false,
+                  selectedColor: Pb.cyan,
+                  labelStyle: TextStyle(color: room.options[e.key] == v ? Pb.bg : Pb.text),
+                  backgroundColor: Pb.bg2,
+                  side: BorderSide.none,
+                  onSelected: (_) => send({'t': 'game_option', 'key': e.key, 'value': v}),
+                ),
+              ),
+          ]);
+
+    Widget switchTile(String title, bool value, ValueChanged<bool> onChanged, {String? subtitle}) => SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          dense: true,
+          value: value,
+          activeThumbColor: Pb.pink,
+          onChanged: onChanged,
+          title: Text(title, style: Pb.t(15, weight: 600)),
+          subtitle: subtitle == null ? null : Text(subtitle, style: Pb.t(13, color: Pb.muted)),
+        );
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 40, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 28, 16, 24),
       children: [
         const PhoneUpdateBanner(),
-        // ---- Moi ----
+        // ---- Moi (compact) ----
         if (me != null)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(22)),
-            child: Row(children: [
-              PbAvatar(size: 64, emoji: me.emoji, color: me.color, photoPath: me.photo),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(me.name, style: Pb.t(22, weight: 700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(isHost ? '👑 Tu es l’hôte' : 'Salon ${room.code}', style: Pb.t(15, color: Pb.muted)),
-                ]),
-              ),
-              IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_rounded, color: Pb.muted), tooltip: 'Modifier'),
-            ]),
-          ),
+          Row(children: [
+            PbAvatar(size: 48, emoji: me.emoji, color: me.color, photoPath: me.photo),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(me.name, style: Pb.t(20, weight: 700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(isHost ? '👑 Hôte · salon ${room.code}' : 'Salon ${room.code}', style: Pb.t(14, color: Pb.muted)),
+              ]),
+            ),
+            IconButton.filledTonal(
+              onPressed: onEdit,
+              style: IconButton.styleFrom(backgroundColor: Pb.card),
+              icon: const Icon(Icons.edit_rounded, color: Pb.muted, size: 20),
+              tooltip: 'Modifier mon profil',
+            ),
+          ]),
         if (!room.tvConnected && !room.perm) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text('📺 La TV n’est plus connectée au salon', textAlign: TextAlign.center, style: Pb.t(15, color: Pb.yellow)),
         ],
-        if (room.perm) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-            decoration: BoxDecoration(color: Pb.card.withValues(alpha: .7), borderRadius: BorderRadius.circular(18)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('🔒 Salon permanent ${room.code}', style: Pb.t(16, weight: 600)),
-              const SizedBox(height: 2),
-              Text(
-                'Pas de TV chez toi ? Le jeu s’affiche sur ton téléphone. Pour le voir en grand : '
-                'ouvre ${serverBase().host}/tv sur un PC ou une TV → Salon permanent → Ouvrir.',
-                style: Pb.t(14, color: Pb.muted),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                value: showScreen,
-                activeThumbColor: Pb.pink,
-                onChanged: onShowScreen,
-                title: Text('Écran du jeu sur mon téléphone', style: Pb.t(15, weight: 600)),
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                dense: true,
-                value: phoneSfx,
-                activeThumbColor: Pb.pink,
-                onChanged: onPhoneSfx,
-                title: Text('Sons et voix sur mon téléphone', style: Pb.t(15, weight: 600)),
-              ),
-              TextButton.icon(
-                onPressed: onStats,
-                icon: const Text('🏆'),
-                label: Text('Classement de tous les temps', style: Pb.t(15, weight: 600)),
-              ),
-            ]),
-          ),
-        ],
-        const SizedBox(height: 22),
+        const SizedBox(height: 16),
 
-        // ---- Jeu ----
+        // ---- Jeu : toujours ouvert ----
         if (isHost) ...[
-          Text('Choisis le jeu', style: Pb.t(18, weight: 600, color: Pb.muted)),
-          const SizedBox(height: 10),
           _GamePicker(room: room, send: send),
-          if (game != null)
-            for (final e in game.options.entries)
-              Padding(
-                padding: const EdgeInsets.only(top: 4, bottom: 4),
-                child: _manyValues(e.value)
-                    ? _OptionDropdown(label: e.value.label, values: e.value.values, value: room.options[e.key] ?? e.value.def,
-                        onChanged: (v) => send({'t': 'game_option', 'key': e.key, 'value': v}))
-                    : Row(children: [
-                  Text(e.value.label, style: Pb.t(16, weight: 600, color: Pb.muted)),
-                  const Spacer(),
-                  for (final v in e.value.values)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: ChoiceChip(
-                        label: Text('$v', style: Pb.t(15, weight: 600)),
-                        selected: room.options[e.key] == v,
-                        showCheckmark: false,
-                        selectedColor: Pb.pink,
-                        backgroundColor: Pb.card,
-                        side: BorderSide.none,
-                        onSelected: (_) => send({'t': 'game_option', 'key': e.key, 'value': v}),
-                      ),
-                    ),
-                ]),
-              ),
+          if (game != null && game.options.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
+              decoration: BoxDecoration(color: Pb.card, borderRadius: BorderRadius.circular(18)),
+              child: Column(children: [
+                for (final (i, e) in game.options.entries.indexed) ...[
+                  if (i > 0) Divider(height: 1, color: Pb.text.withValues(alpha: .07)),
+                  Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: option(e)),
+                ],
+              ]),
+            ),
           const SizedBox(height: 12),
-          FilledButton(
-            onPressed: game == null || !game.ready ? null : () => send({'t': 'start_game'}),
-            child: Text(game == null ? 'Lancer' : 'Lancer ${game.title}'),
+          SizedBox(
+            height: 58,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Pb.green,
+                foregroundColor: const Color(0xFF06301A),
+                disabledBackgroundColor: Pb.card,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                textStyle: Pb.t(20, weight: 700),
+              ),
+              onPressed: game == null || !game.ready ? null : () => send({'t': 'start_game'}),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Icon(Icons.play_arrow_rounded, size: 30),
+                const SizedBox(width: 6),
+                Flexible(child: Text(game == null ? 'Lancer' : 'Lancer ${game.title}', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              ]),
+            ),
           ),
           if (game != null && !game.bots && room.hasBots)
             Padding(
@@ -827,30 +818,7 @@ class _LobbyView extends StatelessWidget {
               child: Text('🤖 Les robots ne jouent pas à ce jeu : ils attendent au salon.',
                   textAlign: TextAlign.center, style: Pb.t(14, color: Pb.muted)),
             ),
-          const SizedBox(height: 10),
-          // Plusieurs jeux d'affilée, avec un classement général
-          OutlinedButton.icon(
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Pb.bg2,
-              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
-              builder: (_) => SoireePicker(room: room, send: send),
-            ),
-            icon: const Text('🎯'),
-            label: const Text('Soirée enchaînée'),
-          ),
-          const SizedBox(height: 10),
-          // Afficher / cacher le classement sur l'écran TV
-          OutlinedButton.icon(
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              send({'t': 'tv_board', 'on': !room.board});
-            },
-            icon: Text(room.board ? '✖️' : '📺'),
-            label: Text(room.board ? 'Cacher le classement de la TV' : 'Classement sur la TV'),
-          ),
-        ] else ...[
+        ] else
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(color: Pb.card.withValues(alpha: .7), borderRadius: BorderRadius.circular(20)),
@@ -866,63 +834,121 @@ class _LobbyView extends StatelessWidget {
               ),
             ]),
           ),
-        ],
-        const SizedBox(height: 22),
+        const SizedBox(height: 14),
 
         // ---- Joueurs ----
-        Text('Joueurs (${room.players.length}/${room.maxPlayers})', style: Pb.t(18, weight: 600, color: Pb.muted)),
-        const SizedBox(height: 10),
-        for (final p in room.players)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(children: [
-              PbAvatar(size: 40, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}'),
-                    if (p.bot != null) TextSpan(text: '  robot ${p.bot == 'facile' ? 'Facile' : 'Malin'}', style: Pb.t(13, weight: 600, color: Pb.cyan)),
-                  ]),
-                  style: Pb.t(18, weight: 500, color: p.connected ? Pb.text : Pb.muted),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+        _Section(
+          key: const ValueKey('sec_joueurs'),
+          title: '👥 Joueurs',
+          initiallyOpen: !isHost,
+          header: _FacePile(players: room.players),
+          trailing: '${room.players.length}/${room.maxPlayers}',
+          children: [
+            for (final p in room.players)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(children: [
+                  PbAvatar(size: 38, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(children: [
+                        TextSpan(text: '${p.name}${p.pid == room.hostPid ? '  👑' : ''}${p.pid == myPid ? '  (toi)' : ''}'),
+                        if (p.bot != null) TextSpan(text: '  robot ${p.bot == 'facile' ? 'Facile' : 'Malin'}', style: Pb.t(13, weight: 600, color: Pb.cyan)),
+                      ]),
+                      style: Pb.t(17, weight: 500, color: p.connected ? Pb.text : Pb.muted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (p.score > 0) Text(Pb.pts(p.score), style: Pb.t(15, weight: 600, color: Pb.yellow)),
+                  if (isHost && p.pid != myPid)
+                    IconButton(
+                      tooltip: 'Retirer du salon',
+                      icon: const Icon(Icons.close_rounded, color: Pb.muted, size: 20),
+                      onPressed: () => _confirmKick(context, p),
+                    )
+                  else
+                    const SizedBox(width: 12),
+                ]),
               ),
-              if (p.score > 0) Text(Pb.pts(p.score), style: Pb.t(16, weight: 600, color: Pb.yellow)),
-              if (isHost && p.pid != myPid)
-                IconButton(
-                  tooltip: 'Retirer du salon',
-                  icon: const Icon(Icons.close_rounded, color: Pb.muted, size: 20),
-                  onPressed: () => _confirmKick(context, p),
-                ),
-            ]),
-          ),
-        if (isHost && room.players.length < room.maxPlayers) ...[
-          const SizedBox(height: 4),
-          OutlinedButton.icon(
-            onPressed: () => _addBot(context),
-            icon: const Text('🤖'),
-            label: const Text('Ajouter un robot'),
-          ),
-        ],
-        const SizedBox(height: 18),
-        InviteButton(code: room.code, perm: room.perm),
-        SwitchListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-          dense: true,
-          value: turnAlert,
-          activeThumbColor: Pb.pink,
-          onChanged: onTurnAlert,
-          title: Text('🔔 Son et vibration à mon tour', style: Pb.t(15, weight: 600)),
-          subtitle: Text('Jeux de société au tour par tour', style: Pb.t(13, color: Pb.muted)),
+            if (isHost && room.players.length < room.maxPlayers)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: OutlinedButton.icon(onPressed: () => _addBot(context), icon: const Text('🤖'), label: const Text('Ajouter un robot')),
+              ),
+            const SizedBox(height: 8),
+            InviteButton(code: room.code, perm: room.perm),
+          ],
         ),
-        const SizedBox(height: 14),
-        PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
 
-        const SizedBox(height: 26),
-        TextButton(onPressed: onLeave, child: Text('Quitter le salon', style: Pb.t(16, color: Pb.muted))),
-        const Center(child: HomeIconButton()),
+        // ---- Soirée et équipes ----
+        if (isHost || room.teams != null)
+          _Section(
+            key: const ValueKey('sec_soiree'),
+            title: isHost ? '🎯 Soirée et équipes' : '👨‍👩‍👧 Équipes',
+            initiallyOpen: !isHost,
+            trailing: room.teams != null ? '${room.teams!.count} équipes' : null,
+            children: [
+              if (isHost) ...[
+                OutlinedButton.icon(
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Pb.bg2,
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+                    builder: (_) => SoireePicker(room: room, send: send),
+                  ),
+                  icon: const Text('🎯'),
+                  label: const Text('Soirée enchaînée (2 à 6 jeux)'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    send({'t': 'tv_board', 'on': !room.board});
+                  },
+                  icon: Text(room.board ? '✖️' : '📺'),
+                  label: Text(room.board ? 'Cacher le classement de la TV' : 'Classement sur la TV'),
+                ),
+                const SizedBox(height: 10),
+              ],
+              PhoneTeams(room: room, myPid: myPid, isHost: isHost, send: send),
+            ],
+          ),
+
+        // ---- Salon permanent ----
+        if (room.perm)
+          _Section(
+            key: const ValueKey('sec_perm'),
+            title: '🔒 Salon permanent',
+            trailing: room.code,
+            children: [
+              Text(
+                'Pas de TV chez toi ? Pendant la partie, touche « Voir l’écran du jeu » en haut. Pour le voir en grand : '
+                'ouvre ${serverBase().host}/tv sur un PC ou une TV → Salon permanent → Ouvrir.',
+                style: Pb.t(14, color: Pb.muted),
+              ),
+              switchTile('Sons et voix sur mon téléphone', phoneSfx, onPhoneSfx),
+              TextButton.icon(
+                onPressed: onStats,
+                icon: const Text('🏆'),
+                label: Text('Classements (du jour, de tous les temps)', style: Pb.t(15, weight: 600)),
+              ),
+            ],
+          ),
+
+        // ---- Mon téléphone ----
+        _Section(
+          key: const ValueKey('sec_tel'),
+          title: '⚙️ Mon téléphone',
+          trailing: 'sons, quitter',
+          children: [
+            switchTile('🔔 Son et vibration à mon tour', turnAlert, onTurnAlert, subtitle: 'Jeux de société au tour par tour'),
+            const Center(child: HomeIconButton()),
+            TextButton(onPressed: onLeave, child: Text('🚪 Quitter le salon', style: Pb.t(16, color: Pb.red))),
+          ],
+        ),
       ],
     );
   }
@@ -987,6 +1013,88 @@ class _LobbyView extends StatelessWidget {
       ),
     );
     if (ok == true) send({'t': 'kick', 'pid': p.pid});
+  }
+}
+
+/// Section repliable du salon (titre, résumé à droite, contenu au toucher)
+class _Section extends StatefulWidget {
+  const _Section({super.key, required this.title, required this.children, this.header, this.trailing, this.initiallyOpen = false});
+  final String title;
+  final Widget? header;
+  final String? trailing;
+  final bool initiallyOpen;
+  final List<Widget> children;
+
+  @override
+  State<_Section> createState() => _SectionState();
+}
+
+class _SectionState extends State<_Section> {
+  late bool _open = widget.initiallyOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Pb.card,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _open = !_open);
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(children: [
+                Text(widget.title, style: Pb.t(17, weight: 600)),
+                if (widget.header != null) ...[const SizedBox(width: 12), widget.header!],
+                const Spacer(),
+                if (widget.trailing != null) Text(widget.trailing!, style: Pb.t(14, color: Pb.muted)),
+                AnimatedRotation(
+                  turns: _open ? .5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.expand_more_rounded, color: Pb.muted),
+                ),
+              ]),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: !_open
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: widget.children),
+                  ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Avatars qui se chevauchent (5 premiers joueurs)
+class _FacePile extends StatelessWidget {
+  const _FacePile({required this.players});
+  final List<PlayerView> players;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = players.take(5).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+    return SizedBox(
+      height: 30,
+      width: 34 + (shown.length - 1) * 20.0,
+      child: Stack(clipBehavior: Clip.none, children: [
+        for (final (i, p) in shown.indexed)
+          Positioned(left: i * 20.0, child: PbAvatar(size: 30, emoji: p.emoji, color: p.color, photoPath: p.photo, dimmed: !p.connected)),
+      ]),
+    );
   }
 }
 

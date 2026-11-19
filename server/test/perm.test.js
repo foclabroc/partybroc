@@ -99,9 +99,13 @@ try {
   assert.equal(ja2.pid, ja.pid);
   assert.equal(ja2.mtoken, ja.mtoken);
   const r1 = await R(tvB, (r) => r.players.length === 1);
-  assert.equal(r1.players[0].score, 1234);
+  // score affiché = points du jour (la partie de tout à l'heure) ; le total reste 1 234 en base
+  const day = (await sql.query("select coalesce(sum(score), 0)::int as s from pb.pb_room_days where code = $1 and member_id = $2", [NAME, ja.pid])).rows[0].s;
+  assert.equal(r1.players[0].score, day);
   assert.equal(r1.players[0].name, 'Mamie Jo');
-  step('Après redémarrage : écran revenu avec sa clé, joueur revenu avec son jeton, score total 1 234');
+  await sleep(200);
+  assert.equal(Number((await sql.query('select score from pb.pb_room_members where code = $1 and member_id = $2', [NAME, ja.pid])).rows[0].score), 1234);
+  step('Après redémarrage : écran revenu avec sa clé, joueur revenu avec son jeton, score du jour affiché, total 1 234 gardé');
 
   // Papy change de téléphone (pas de jeton) : mot de passe + même pseudo = même joueur
   const b2 = await client(PORT);

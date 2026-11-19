@@ -34,7 +34,7 @@ class InviteButton extends StatelessWidget {
   Widget build(BuildContext context) => OutlinedButton.icon(
         onPressed: () => _tap(context),
         icon: const Text('📨'),
-        label: const Text('Inviter des joueurs (SMS, Messenger…)'),
+        label: const Text('Inviter des joueurs'),
       );
 }
 

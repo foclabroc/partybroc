@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import { startServer, client } from './lib.js';
+import { partyDay } from '../src/rooms.js';
 
 const PORT = 4193;
 const srv = await startServer(PORT, { PB_FAST: '1', PB_ROOMS_PER_IP: '100' });
@@ -12,6 +13,11 @@ const R = async (c, cond, ms = 8000) => (await c.room(cond, ms)).room;
 const g = (m) => ({ t: 'game_msg', m });
 
 try {
+  // jour de jeu : commence à 6 h (heure de Paris), une soirée qui passe minuit compte pour la veille
+  assert.equal(partyDay(Date.UTC(2026, 10, 19, 4, 30)), '2026-11-18'); // 5 h 30 à Paris
+  assert.equal(partyDay(Date.UTC(2026, 10, 19, 5, 30)), '2026-11-19'); // 6 h 30 à Paris
+  assert.equal(partyDay(Date.UTC(2026, 6, 19, 3, 30)), '2026-07-18');  // 5 h 30 l'été (UTC+2)
+
   const tv = await client(PORT);
   tv.send({ t: 'tv_hello' });
   const { code } = await tv.wait('tv_ok');
@@ -131,12 +137,23 @@ try {
     assert.equal(champ.name, 'Papy');
     assert.equal(champ.wins, 1);
     assert.equal(champ.played, 2);
+    // classement du jour : mêmes points que le total (tout s'est joué aujourd'hui)
+    assert.equal(st.today[0].name, 'Papy');
+    assert.equal(st.today[0].score, st.members[0].score);
+    assert.equal(st.today.length, 2);
+    // une ancienne journée gagnée par Mamie : elle compte dans « jours gagnés », pas dans le classement du jour
+    await sql.query(`insert into pb.pb_room_days (code, member_id, day, score, games, wins) values ('TESTSTATS', $1, '2020-01-01', 999999, 1, 1)`, [m[0].me]);
+    tv2.send({ t: 'perm_stats' });
+    const st2 = await tv2.wait('perm_stats');
+    assert.equal(st2.today[0].name, 'Papy');
+    assert.equal(st2.members.find((x) => x.name === 'Mamie').days, 1);
+    assert.equal(st2.members.find((x) => x.name === 'Papy').days, 0);
     m[0].send({ t: 'perm_stats' });
     assert.equal((await m[0].wait('perm_stats')).members.length, 2);
     await sql.query("delete from pb.pb_rooms where code = 'TESTSTATS'");
     await sql.end();
     for (const x of [tv2, ...m]) x.close();
-    step('Statistiques du salon permanent : classement de tous les temps, champion de chaque jeu, pour l’écran et les joueurs');
+    step('Statistiques du salon permanent : classement du jour, de tous les temps (jours gagnés), champion de chaque jeu, pour l’écran et les joueurs');
   }
 
   console.log(`\n${ok} étapes OK`);

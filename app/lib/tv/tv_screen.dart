@@ -44,6 +44,7 @@ class _TvScreenState extends State<TvScreen> {
   final _sfx = SfxDirector(); // bruitages d'après l'état du salon
   final _voice = VoiceDirector(); // animateur vocal
   final _stats = ValueNotifier<Map<String, dynamic>?>(null); // statistiques du salon permanent
+  final _today = ValueNotifier<List<Map<String, dynamic>>>(const []); // classement du jour (salon permanent), pour le salon
   Timer? _updateTimer;
   DateTime _lastCheck = DateTime(2000);
 
@@ -116,7 +117,7 @@ class _TvScreenState extends State<TvScreen> {
     _sock.send({'t': r.create ? 'perm_create' : 'perm_open', 'code': r.code, 'password': r.password});
   }
 
-  // Statistiques du salon permanent (classement de tous les temps, champions)
+  // Statistiques du salon permanent (classement du jour, de tous les temps, champions)
   Future<void> _statsDialog() async {
     if (_dialog) return;
     _dialog = true;
@@ -129,7 +130,7 @@ class _TvScreenState extends State<TvScreen> {
           backgroundColor: Pb.bg2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           content: SizedBox(
-            width: 900,
+            width: 1300,
             child: SingleChildScrollView(
               child: ValueListenableBuilder(
                 valueListenable: _stats,
@@ -157,6 +158,7 @@ class _TvScreenState extends State<TvScreen> {
     switch (m['t']) {
       case 'perm_stats':
         _stats.value = m;
+        _today.value = [for (final x in (m['today'] as List? ?? const [])) x as Map<String, dynamic>];
       case 'tv_ok':
         if (m['perm'] == true) {
           _prefs?.setString('tv_perm_code', m['code'] as String);
@@ -168,16 +170,16 @@ class _TvScreenState extends State<TvScreen> {
         }
         setState(() => _error = null);
       case 'room':
-        // Classement demandé par l'hôte : dans un salon permanent, on charge aussi celui de tous les temps
-        final board = (m['room'] as Map)['board'] == true;
-        if (board && _room?.board != true && (m['room'] as Map)['perm'] == true) {
-          _stats.value = null;
-          _sock.send({'t': 'perm_stats'});
-        }
+        final was = _room;
         setState(() {
           _room = RoomView.fromJson(m['room'] as Map<String, dynamic>);
           _error = null;
         });
+        // Salon permanent : classement du jour rechargé à chaque retour au salon (joueurs absents compris)
+        if (_room!.perm && _room!.live == null && (was == null || was.live != null || was.code != _room!.code)) {
+          if (was?.code != _room!.code) _today.value = const [];
+          _sock.send({'t': 'perm_stats'});
+        }
         _sfx.onRoom(m['room'] as Map<String, dynamic>);
         _voice.onRoom(m['room'] as Map<String, dynamic>);
         // Musique : « jeu » pendant une partie, « salon » au salon et au podium
@@ -320,13 +322,14 @@ class _TvScreenState extends State<TvScreen> {
                 else if (_room!.soiree != null && _room!.soiree!.step != 'game')
                   TvSoiree(room: _room!)
                 else if (_room!.board)
-                  TvBoard(room: _room!, stats: _stats)
+                  TvBoard(room: _room!)
                 else
                   _Lobby(
                     room: _room!,
                     onNewRoom: _room!.perm ? _leavePerm : _newRoom,
                     onPerm: _permDialog,
                     onStats: _statsDialog,
+                    today: _today,
                     onQuit: _onBack,
                     onUpdate: _update == null ? null : _offerUpdate,
                   ),
@@ -370,8 +373,9 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 class _Lobby extends StatelessWidget {
-  const _Lobby({required this.room, required this.onNewRoom, required this.onPerm, required this.onStats, required this.onQuit, this.onUpdate});
+  const _Lobby({required this.room, required this.onNewRoom, required this.onPerm, required this.onStats, required this.today, required this.onQuit, this.onUpdate});
   final RoomView room;
+  final ValueNotifier<List<Map<String, dynamic>>> today;
   final VoidCallback onNewRoom;
   final VoidCallback onPerm;
   final VoidCallback onStats;
@@ -487,7 +491,21 @@ class _Lobby extends StatelessWidget {
                 ]),
                 SizedBox(height: room.teams != null ? 14 : 34),
                 if (room.teams != null) ...[TvTeamsBar(teams: room.teams!, size: 28), const SizedBox(height: 14)],
-                Expanded(child: _PlayersGrid(room: room)),
+                Expanded(
+                  child: ValueListenableBuilder(
+                    valueListenable: today,
+                    builder: (_, t, _) {
+                      final rows = _dayRows(room, t);
+                      if (rows.isEmpty) return _PlayersGrid(room: room);
+                      // Des points marqués : joueurs à gauche, scores à droite
+                      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Expanded(child: _PlayersGrid(room: room, compact: true)),
+                        const SizedBox(width: 30),
+                        SizedBox(width: 430, child: _DayScores(rows: rows, perm: room.perm)),
+                      ]);
+                    },
+                  ),
+                ),
               ]),
             ),
           ]),
@@ -528,14 +546,47 @@ class _CodeLetters extends StatelessWidget {
 }
 
 class _PlayersGrid extends StatelessWidget {
-  const _PlayersGrid({required this.room});
+  const _PlayersGrid({required this.room, this.compact = false});
   final RoomView room;
+  final bool compact; // à côté des scores : seulement les joueurs + une place libre, et tout rétrécit si besoin
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      final n = room.players.length;
+      return LayoutBuilder(
+        builder: (_, c) => FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: c.maxWidth,
+            child: Wrap(spacing: 22, runSpacing: 12, children: [
+              for (var i = 0; i < n + (n < room.maxPlayers ? 1 : 0); i++)
+                SizedBox(
+                  width: 170,
+                  child: i < n
+                      ? _PlayerTile(key: ValueKey(room.players[i].pid), p: room.players[i], host: room.players[i].pid == room.hostPid, small: true, showScore: false)
+                      : const _EmptySlot(first: true, small: true),
+                ),
+            ]),
+          ),
+        ),
+      );
+    }
     // Jusqu'à 15 places : 3 rangées de 5, plus petites
     final slots = room.maxPlayers;
     final small = slots > 10;
+    // Rétrécit s'il manque de la hauteur (3 rangées de jeux en bas)
+    return LayoutBuilder(
+      builder: (_, c) => FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topLeft,
+        child: SizedBox(width: c.maxWidth, child: _wrap(slots, small)),
+      ),
+    );
+  }
+
+  Widget _wrap(int slots, bool small) {
     return Wrap(
       spacing: small ? 22 : 26,
       runSpacing: small ? 12 : 34,
@@ -553,9 +604,9 @@ class _PlayersGrid extends StatelessWidget {
 }
 
 class _PlayerTile extends StatelessWidget {
-  const _PlayerTile({super.key, required this.p, required this.host, this.small = false});
+  const _PlayerTile({super.key, required this.p, required this.host, this.small = false, this.showScore = true});
   final PlayerView p;
-  final bool host, small;
+  final bool host, small, showScore;
 
   @override
   Widget build(BuildContext context) {
@@ -595,7 +646,87 @@ class _PlayerTile extends StatelessWidget {
             ),
           ),
         ]),
-        if (p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(small ? 22 : 26, weight: 600, color: Pb.yellow, height: 1.1)),
+        if (showScore && p.score > 0) Text('${Pb.pts(p.score)} pts', style: Pb.t(small ? 22 : 26, weight: 600, color: Pb.yellow, height: 1.1)),
+      ]),
+    );
+  }
+}
+
+/// Une ligne du classement affiché au salon
+typedef _DayRow = ({String name, String emoji, int color, String? photo, int score, bool here});
+
+/// Scores du salon : joueurs présents (points à jour) + joueurs du jour déjà partis (salon permanent)
+List<_DayRow> _dayRows(RoomView room, List<Map<String, dynamic>> today) {
+  final rows = <_DayRow>[
+    for (final p in room.players) (name: p.name, emoji: p.emoji, color: p.color, photo: p.photo, score: p.score, here: true),
+  ];
+  if (room.perm) {
+    final ids = {for (final p in room.players) p.pid};
+    for (final t in today) {
+      if (ids.contains(t['id'])) continue;
+      rows.add((
+        name: t['name'] as String? ?? '?',
+        emoji: t['emoji'] as String? ?? '🙂',
+        color: (t['color'] as num?)?.toInt() ?? 0,
+        photo: null,
+        score: (t['score'] as num?)?.toInt() ?? 0,
+        here: false,
+      ));
+    }
+  }
+  rows.removeWhere((r) => r.score <= 0);
+  rows.sort((a, b) => b.score - a.score);
+  return rows;
+}
+
+class _DayScores extends StatelessWidget {
+  const _DayScores({required this.rows, required this.perm});
+  final List<_DayRow> rows;
+  final bool perm;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = rows.take(10).toList();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
+      decoration: BoxDecoration(
+        color: Pb.card.withValues(alpha: .85),
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: Pb.cardHi, width: 3),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: 376,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(perm ? '🏆 Scores du jour' : '🏆 Scores de la soirée', style: Pb.t(32, weight: 700)),
+            const SizedBox(height: 12),
+            for (var i = 0; i < shown.length; i++) _row(shown, i),
+            if (rows.length > shown.length) Text('+ ${rows.length - shown.length} autres', style: Pb.t(20, color: Pb.muted)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(List<_DayRow> rows, int i) {
+    final r = rows[i];
+    var rank = i + 1; // ex aequo : même rang
+    while (rank > 1 && rows[rank - 2].score == r.score) {
+      rank--;
+    }
+    final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '$rank' };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        SizedBox(width: 46, child: Text(medal, style: Pb.t(26, weight: 700, color: Pb.muted))),
+        PbAvatar(size: 44, emoji: r.emoji, color: r.color, photoPath: r.photo, dimmed: !r.here),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Pb.t(26, weight: 600, color: r.here ? Pb.text : Pb.muted)),
+        ),
+        Text(Pb.pts(r.score), style: Pb.t(26, weight: 700, color: rank == 1 ? Pb.yellow : Pb.text)),
       ]),
     );
   }
@@ -1071,43 +1202,28 @@ class _TvButtonState extends State<TvButton> {
 /// normal), ou celui de tous les temps avec les champions par jeu (salon permanent,
 /// où le score d'un joueur est déjà son total depuis la création du salon).
 class TvBoard extends StatelessWidget {
-  const TvBoard({super.key, required this.room, required this.stats});
+  const TvBoard({super.key, required this.room});
   final RoomView room;
-  final ValueNotifier<Map<String, dynamic>?> stats;
 
   @override
   Widget build(BuildContext context) {
     final teams = room.teams;
-    final Widget body;
-    if (room.perm) {
-      body = ValueListenableBuilder(
-        valueListenable: stats,
-        builder: (_, st, _) => st == null
-            ? const Center(child: CircularProgressIndicator(color: Pb.pink))
-            : FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.topCenter,
-                child: SizedBox(width: 1700, child: PermStatsView(stats: st, games: room.games, scale: 1.6, wide: true)),
-              ),
-      );
-    } else {
-      final players = [...room.players]..sort((a, b) => b.score - a.score);
-      body = FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.topCenter,
-        child: SizedBox(
-          width: 1200,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (players.isEmpty) Text('Personne pour l’instant', style: Pb.t(36, color: Pb.muted)),
-            for (var i = 0; i < players.length && i < 15; i++) _row(players, i),
-          ]),
-        ),
-      );
-    }
+    final players = [...room.players]..sort((a, b) => b.score - a.score);
+    final body = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: 1200,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (players.isEmpty) Text('Personne pour l’instant', style: Pb.t(36, color: Pb.muted)),
+          for (var i = 0; i < players.length && i < 15; i++) _row(players, i),
+        ]),
+      ),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(90, 100, 90, 50),
       child: Column(children: [
-        Text(room.perm ? '🏆 Classement de tous les temps' : '🏆 Classement de la soirée', style: Pb.t(64, weight: 700)),
+        Text(room.perm ? '🏆 Classement du jour' : '🏆 Classement de la soirée', style: Pb.t(64, weight: 700)),
         const SizedBox(height: 20),
         if (teams != null) ...[
           Wrap(spacing: 18, runSpacing: 12, alignment: WrapAlignment.center, children: [
