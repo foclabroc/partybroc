@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../games/calcul_ui.dart';
 import '../games/blindtest_ui.dart';
 import '../games/cine_ui.dart';
+import '../games/meninges_ui.dart';
 import '../games/rebus_ui.dart';
 import '../games/expressions_ui.dart';
 import '../games/dessin_ui.dart';
@@ -109,6 +110,7 @@ class _PlayScreenState extends State<PlayScreen> {
     _profile = await Profile.load(prefs);
     _phoneSfx = prefs.getBool('phone_sfx') ?? true;
     TurnAlert.instance.enabled = prefs.getBool('turn_alert') ?? true;
+    MngLive.sound = prefs.getBool('answer_sfx') ?? true;
     _sCode = prefs.getString('s_code');
     _sToken = prefs.getString('s_token');
     final wanted = widget.initialCode?.toUpperCase();
@@ -214,6 +216,8 @@ class _PlayScreenState extends State<PlayScreen> {
         BtAudio.instance.onRoom(m['room'] as Map<String, dynamic>, enabled: _room!.perm && _phoneSfx);
       case 'draw':
         DrawBoard.instance.apply(m);
+      case 'mng_q':
+        MngLive.q.value = m;
       case 'scr_preview':
         ScrPreview.value.value = m;
       case 'scr_refused':
@@ -338,12 +342,9 @@ class _PlayScreenState extends State<PlayScreen> {
                 Expanded(
                   child: Stack(children: [
                     Positioned.fill(child: _body()),
-                    // réactions des autres qui montent, et le dernier message en bulle
-                    if (_inRoom) const Positioned.fill(child: LiveLayer(scale: .42, bubbleBottom: 30)),
                     Positioned(top: 8, left: 0, right: 0, child: Center(child: _NetPill(state: _sock.state))),
                   ]),
                 ),
-                if (_inRoom) PhoneChatBar(send: _sock.send, canChat: !_drawing),
               ]),
             ),
           ),
@@ -351,11 +352,6 @@ class _PlayScreenState extends State<PlayScreen> {
       ),
     );
   }
-
-  bool get _inRoom => _step == _Step.lobby && _room != null;
-
-  // Dessin à deviner, pendant qu'on dessine : pas de messages (on soufflerait le mot)
-  bool get _drawing => _room?.live?['id'] == 'dessin' && _room?.live?['phase'] == 'draw';
 
   Widget _body() {
     switch (_step) {
@@ -397,6 +393,11 @@ class _PlayScreenState extends State<PlayScreen> {
             if (v) TurnAlert.instance.ping();
           },
           onPhoneSfx: _setPhoneSfx,
+          answerSfx: MngLive.sound,
+          onAnswerSfx: (v) {
+            _prefs?.setBool('answer_sfx', v);
+            setState(() => MngLive.sound = v);
+          },
           onStats: _openStats,
         );
     }
@@ -450,7 +451,8 @@ class _PlayScreenState extends State<PlayScreen> {
   // Structure toujours identique (clavier du Dessin, voir `_roomy`).
   Widget _withScreen(RoomView room, Widget play) {
     return LayoutBuilder(builder: (context, c) {
-      final screenH = math.max(110.0, math.min((c.maxWidth - 20) * 9 / 16, c.maxHeight - 34 - _minPlayHeight));
+      final minH = _minHeightFor(room);
+      final screenH = math.max(110.0, math.min((c.maxWidth - 20) * 9 / 16, c.maxHeight - 34 - minH));
       final topH = 34 + (_showScreen ? screenH : 48.0);
       return SingleChildScrollView(
         child: Column(children: [
@@ -485,26 +487,30 @@ class _PlayScreenState extends State<PlayScreen> {
                 label: Text('Voir l’écran du jeu', style: Pb.t(15, weight: 600)),
               ),
             ),
-          SizedBox(height: math.max(c.maxHeight - topH, _minPlayHeight), child: play),
+          SizedBox(height: math.max(c.maxHeight - topH, minH), child: play),
         ]),
       );
     });
   }
 
   // Jeux de société : petit bouton « 📖 Règles » en haut à gauche
-  Widget _play(RoomView room) => withRules(room.live?['id'] as String?, _roomy(_playGame(room)));
+  Widget _play(RoomView room) => withRules(room.live?['id'] as String?, _roomy(_playGame(room), _minHeightFor(room)));
 
   // Écran trop court (iPhone avec les barres de Safari, ou l'écran du jeu affiché au-dessus dans un
   // salon permanent) : le jeu garde une hauteur suffisante et on fait défiler, au lieu d'écraser les
   // commandes (boutons et cartes du bas coupés, et qu'on ne peut plus toucher).
   static const _minPlayHeight = 620.0;
+  // Jeux à 4 réponses qui se partagent la hauteur (`PhoneChoices`) : ils tiennent dans moins,
+  // et sur un petit écran la 4e réponse ne doit pas être cachée sous la barre du bas.
+  static const _compactGames = {'quiz', 'cine', 'blindtest', 'rebus', 'expressions', 'zoom', 'survie', 'meninges'};
+  static double _minHeightFor(RoomView room) => _compactGames.contains(room.live?['id']) ? 480.0 : _minPlayHeight;
   // Toujours la même structure (SingleChildScrollView), quelle que soit la hauteur : si on passait
   // de « game » à « défilement + game » quand le clavier s'ouvre (la hauteur baisse), le champ texte
   // était reconstruit, perdait le focus et le clavier se refermait aussitôt (Dessin sur Android).
-  Widget _roomy(Widget game) => LayoutBuilder(builder: (context, c) {
+  Widget _roomy(Widget game, [double minH = _minPlayHeight]) => LayoutBuilder(builder: (context, c) {
         if (!c.hasBoundedHeight) return game;
         return SingleChildScrollView(
-          child: SizedBox(height: math.max(c.maxHeight, _minPlayHeight), child: game),
+          child: SizedBox(height: math.max(c.maxHeight, minH), child: game),
         );
       });
 
@@ -544,6 +550,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return ZoomPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'survie':
         return SurvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'meninges':
+        return MngPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'cine':
         return CinePlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'blindtest':
@@ -700,13 +708,15 @@ class _LobbyView extends StatelessWidget {
     required this.onPhoneSfx,
     required this.turnAlert,
     required this.onTurnAlert,
+    required this.answerSfx,
+    required this.onAnswerSfx,
     required this.onStats,
   });
 
   final VoidCallback onStats;
 
-  final bool phoneSfx, turnAlert;
-  final ValueChanged<bool> onPhoneSfx, onTurnAlert;
+  final bool phoneSfx, turnAlert, answerSfx;
+  final ValueChanged<bool> onPhoneSfx, onTurnAlert, onAnswerSfx;
   final RoomView room;
   final String? myPid;
   final VoidCallback onEdit;
@@ -945,6 +955,7 @@ class _LobbyView extends StatelessWidget {
           trailing: 'sons, quitter',
           children: [
             switchTile('🔔 Son et vibration à mon tour', turnAlert, onTurnAlert, subtitle: 'Jeux de société au tour par tour'),
+            switchTile('🔊 Petits sons de mes réponses', answerSfx, onAnswerSfx, subtitle: 'Bataille de méninges : juste / faux'),
             const Center(child: HomeIconButton()),
             TextButton(onPressed: onLeave, child: Text('🚪 Quitter le salon', style: Pb.t(16, color: Pb.red))),
           ],

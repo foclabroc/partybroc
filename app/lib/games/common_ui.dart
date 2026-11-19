@@ -436,7 +436,8 @@ Widget phoneGain(Map<String, dynamic>? you, {String good = 'Bien joué !', Strin
 
 /// Place finale
 Widget phoneRank(Map<String, dynamic>? you) {
-  final rank = you.yi('rank');
+  // Personne n'a marqué (tous à 0) : pas de « 1re place » ni de feu d'artifice
+  final rank = (you.yi('score') ?? 0) > 0 ? you.yi('rank') : null;
   final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '🎯' };
   final center = PhoneCenter(
     emoji: medal,

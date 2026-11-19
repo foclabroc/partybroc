@@ -149,11 +149,11 @@ class QuizPlay extends StatelessWidget {
   // ---- classement perso ----
   Widget _rankView({bool final_ = false}) {
     final y = you;
-    final rank = y?.rank;
+    final rank = (y?.score ?? 0) > 0 || !final_ ? y?.rank : null; // tous à 0 : pas de « 1re place »
     final medal = switch (rank) { 1 => '🥇', 2 => '🥈', 3 => '🥉', _ => '🎯' };
     final view = _center(
       final_ ? medal : '📊',
-      rank == null ? 'Classement' : '${rank == 1 ? '1re' : '${rank}e'} place${final_ ? ' !' : ''}',
+      rank == null ? (final_ ? 'Fin de la partie' : 'Classement') : '${rank == 1 ? '1re' : '${rank}e'} place${final_ ? ' !' : ''}',
       '${Pb.pts(y?.score ?? 0)} points · ${y?.players ?? 0} joueurs',
       color: rank == 1 ? Pb.yellow : Pb.text,
     );

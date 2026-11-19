@@ -73,6 +73,8 @@ class SfxDirector {
   final _ticks = <Timer>[];
   Timer? _show;
   int? _ymsRoll;
+  int? _mngOk;
+  DateTime _mngPop = DateTime(2000);
 
   static const _askPhases = {'question', 'ask', 'vote', 'write', 'draw', 'go'};
 
@@ -87,6 +89,14 @@ class SfxDirector {
     final roll = live?['id'] == 'yams' ? (live!['rollSeq'] as num?)?.toInt() : null;
     if (roll != null && _ymsRoll != null && roll > _ymsRoll!) Sfx.instance.play('des');
     _ymsRoll = roll;
+
+    // Bataille de méninges : petit « plop » à chaque bonne réponse (4 par seconde au plus)
+    final ok = live?['id'] == 'meninges' ? (live!['correctSeq'] as num?)?.toInt() : null;
+    if (ok != null && _mngOk != null && ok > _mngOk! && DateTime.now().difference(_mngPop).inMilliseconds > 250) {
+      _mngPop = DateTime.now();
+      Sfx.instance.play('pop', vol: .35);
+    }
+    _mngOk = ok;
 
     final phase = live?['phase'] as String?;
     final key = live == null ? null : '${live['id']}-${live['index'] ?? live['turn'] ?? ''}-$phase';

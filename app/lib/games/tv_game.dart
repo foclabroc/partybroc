@@ -4,6 +4,7 @@ import '../models.dart';
 import 'calcul_ui.dart';
 import 'blindtest_ui.dart';
 import 'cine_ui.dart';
+import 'meninges_ui.dart';
 import 'rebus_ui.dart';
 import 'expressions_ui.dart';
 import 'dessin_ui.dart';
@@ -50,6 +51,7 @@ Widget tvGameView(RoomView room) {
     'rebus' => RbsTv(room: room, live: live),
     'blindtest' => BtTv(room: room, live: live),
     'cine' => CineTv(room: room, live: live),
+    'meninges' => MngTv(room: room, live: live),
     'expressions' => ExpTv(room: room, live: live),
     'pioche' => PchTv(room: room, live: live),
     'oie' => OieTv(room: room, live: live),

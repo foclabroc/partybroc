@@ -138,6 +138,7 @@ class VoiceDirector {
       final g = (room['games'] as List? ?? const []).cast<Map>().where((g) => g['id'] == id).firstOrNull;
       return g == null ? null : '${g['title']} ! C’est parti !';
     }
+    if (id == 'meninges') return _meninges(live, phase, name);
     if (phase == 'podium') {
       final rk = (live['ranking'] as List? ?? const []).cast<Map>();
       final first = rk.where((r) => r['rank'] == 1 && (r['score'] as num? ?? 0) > 0).map((r) => name(r['pid'])).toList();
@@ -255,6 +256,25 @@ class VoiceDirector {
           if (who.isEmpty) return null;
           return who.length == 1 ? 'C’était ${who.first} !' : 'C’était ${who.sublist(0, who.length - 1).join(', ')} et ${who.last} !';
         }
+    }
+    return null;
+  }
+
+  // Bataille de méninges : l'épreuve, les annonces en direct (prise de tête, séries…), la pesée finale
+  String? _meninges(Map<String, dynamic> live, String phase, String Function(Object?) name) {
+    final e = (live['epr'] as Map?) ?? const {};
+    final cat = (live['cats'] as List? ?? const []).cast<Map>().where((c) => c['id'] == e['cat']).firstOrNull;
+    final news = (live['news'] as Map?)?['text'] as String?;
+    if (phase == 'announce') return '${cat?['name'] ?? ''} : ${e['title'] ?? ''} ! ${e['desc'] ?? ''}';
+    if (phase == 'go') return news ?? 'Partez !';
+    if (phase == 'result') return news;
+    if (phase == 'podium') {
+      final pl = ((live['players'] as Map?) ?? const {}).entries.toList()
+        ..sort((a, b) => (((a.value as Map)['w'] as num?) ?? 0).compareTo(((b.value as Map)['w'] as num?) ?? 0));
+      if (pl.isEmpty) return 'Fin de la partie !';
+      final parts = [for (final p in pl.length > 4 ? pl.sublist(pl.length - 4) : pl) '${name(p.key)}, ${(p.value as Map)['w']} grammes'];
+      final last = parts.removeLast();
+      return '${parts.isEmpty ? '' : '${parts.join('… ')}… '}Et le cerveau le plus lourd : $last ! Bravo !';
     }
     return null;
   }

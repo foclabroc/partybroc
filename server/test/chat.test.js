@@ -72,6 +72,7 @@ try {
     guesser.flush();
     guesser.send({ t: 'chat', text: 'c’est un chat !' });
     assert.equal((await guesser.wait('error')).code, 'no_chat');
+    await new Promise((r) => setTimeout(r, 2100)); // Bob a épuisé ses réactions plus haut (6 par 2 s)
     guesser.send({ t: 'react', e: '😂' });
     assert.equal((await tv.wait('react')).e, '😂');
     step('Dessin : messages refusés pendant qu’on devine, réactions acceptées');

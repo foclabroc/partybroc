@@ -27,6 +27,7 @@ import { TasGame, TAS } from './tas.js';
 import { LotoGame, LOTO } from './loto.js';
 import { BlindTestGame, BT, BT_CHOICES } from './blindtest.js';
 import { CineGame, CINE, CINE_CHOICES, CINE_HINTS } from './cine.js';
+import { MeningesGame, MNG } from './meninges.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -94,6 +95,12 @@ export const GAMES = [
       rounds: { label: 'Images', values: CINE.rounds, def: CINE.defaultRounds },
       temps: { label: 'Temps', values: CINE.times, def: CINE.defaultTime },
       indice: { label: 'Indice', values: CINE_HINTS, def: 'Avec' },
+    } },
+  { id: 'meninges',  title: 'Bataille de méninges', emoji: '🧠', min: 1, cat: 'fun', ready: true, bots: true, impl: MeningesGame,
+    pitch: '7 catégories d’épreuves éclair, chacun à son rythme : le cerveau le plus lourd gagne !',
+    options: {
+      rounds: { label: 'Manches', values: MNG.rounds, def: MNG.defaultRounds },
+      without: { label: 'Sans', values: MNG.without, def: MNG.without[0] },
     } },
   { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, cat: 'societe', ready: true, bots: true, impl: PiocheGame,
     pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',
