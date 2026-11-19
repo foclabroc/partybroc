@@ -729,7 +729,8 @@ class _LobbyView extends StatelessWidget {
     final isHost = myPid != null && room.hostPid == myPid;
     final game = room.game;
 
-    Widget option(MapEntry<String, GameOption> e) => _manyValues(e.value)
+    Widget option(MapEntry<String, GameOption> e) => LayoutBuilder(
+        builder: (context, box) => _manyValues(e.value) || !_chipsFit(context, e.value, box.maxWidth)
         ? _OptionDropdown(label: e.value.label, values: e.value.values, value: room.options[e.key] ?? e.value.def,
             onChanged: (v) => send({'t': 'game_option', 'key': e.key, 'value': v}))
         : Row(children: [
@@ -749,7 +750,7 @@ class _LobbyView extends StatelessWidget {
                   onSelected: (_) => send({'t': 'game_option', 'key': e.key, 'value': v}),
                 ),
               ),
-          ]);
+          ]));
 
     Widget switchTile(String title, bool value, ValueChanged<bool> onChanged, {String? subtitle}) => SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1385,6 +1386,20 @@ class _NearbyRooms extends StatelessWidget {
 
 // Beaucoup de choix, ou des choix longs (playlists du Blind test) : une liste déroulante,
 // les puces ne tiendraient pas sur une ligne
+/// Les puces d'une option tiennent-elles sur une ligne ? (sinon : liste déroulante)
+bool _chipsFit(BuildContext context, GameOption o, double maxWidth) {
+  final scaler = MediaQuery.textScalerOf(context);
+  double w(String s, double size) => (TextPainter(
+        text: TextSpan(text: s, style: Pb.t(size, weight: 600)),
+        textScaler: scaler,
+        textDirection: TextDirection.ltr,
+      )..layout())
+          .width;
+  // libellé + marge, puis chaque puce : texte + rembourrage de la puce (≈ 34) + écart 6
+  final need = w(o.label, 16) + 16 + o.values.fold<double>(0, (n, v) => n + w('$v', 15) + 40);
+  return need <= maxWidth;
+}
+
 bool _manyValues(GameOption o) => o.values.length > 4 || o.values.fold<int>(0, (n, v) => n + '$v'.length) > 40;
 
 class _OptionDropdown extends StatelessWidget {

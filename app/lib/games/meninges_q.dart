@@ -380,6 +380,7 @@ class _MngCupsState extends State<MngCups> {
   late final int n = (widget.q['n'] as num).toInt();
   late List<int> slot = List.generate(n, (i) => i); // slot[gobelet] = place
   bool lifted = true;
+  bool ball = true; // la balle n'est visible que gobelet levé
   bool ready = false;
 
   @override
@@ -393,7 +394,10 @@ class _MngCupsState extends State<MngCups> {
     await Future<void>.delayed(const Duration(milliseconds: 1100));
     if (!mounted) return;
     setState(() => lifted = false);
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    setState(() => ball = false); // le gobelet est posé : plus de balle visible
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     for (final s in widget.q['swaps'] as List) {
       final a = (s[0] as num).toInt(), b = (s[1] as num).toInt();
       if (!mounted) return;
@@ -428,7 +432,7 @@ class _MngCupsState extends State<MngCups> {
             child: GestureDetector(
               onTap: ready ? () => widget.onPick(slot[cup]) : null,
               child: Stack(alignment: Alignment.bottomCenter, children: [
-                if (cup == start) const Positioned(bottom: 0, child: Text('🔴', style: TextStyle(fontSize: 30))),
+                if (cup == start && ball) const Positioned(bottom: 0, child: Text('🔴', style: TextStyle(fontSize: 30))),
                 AnimatedSlide(
                   duration: const Duration(milliseconds: 300),
                   offset: Offset(0, lifted && cup == start ? -.45 : 0),
