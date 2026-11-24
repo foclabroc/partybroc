@@ -1,8 +1,8 @@
-﻿# PartyBroc : mise à jour sur le serveur maison (PowerShell, en administrateur).
-#   cd D:\partybroc ; .\deploy.ps1
+﻿# PartyBroc : mise à jour sur le serveur (PowerShell, en administrateur).
+#   cd C:\partybroc ; .\deploy.ps1   (ou double-clic sur « Mettre a jour.cmd »)
 # 1. récupère le code du serveur (git pull)
 # 2. installe les dépendances Node
-# 3. télécharge le site compilé (release web-latest) dans D:\partybroc\web
+# 3. télécharge le site compilé (release web-latest) dans le dossier web\ à côté de ce script
 #    + assetlinks.json (release tv-latest) : les liens /play ouvrent l'appli Android
 # 4. redémarre le service partybroc
 $ErrorActionPreference = 'Stop'

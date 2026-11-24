@@ -1,20 +1,22 @@
-# Installer PartyBroc sur le serveur maison
+# Installer PartyBroc sur un PC Windows
 
-Même PC que Pixel Trade (PostgreSQL 17, NSSM, Node.js 24, Caddy). Rien de Pixel Trade n'est touché : base, rôle, service et sous-domaine sont séparés.
+Il faut un PC Windows qui reste allumé avec PostgreSQL 17, Node.js 20 ou plus, [NSSM](https://nssm.cc/), [Caddy](https://caddyserver.com/) et Git, et un nom de domaine qui pointe vers ta box (par exemple un sous-domaine [DuckDNS](https://www.duckdns.org/) gratuit, avec les ports 80 et 443 redirigés vers le PC). PartyBroc a sa propre base, son propre rôle et son propre service : il peut cohabiter avec d'autres services sur le même PC.
+
+Dans ce guide, le dossier est `C:\partybroc` et le domaine `party.ton-domaine.fr` : remplace-les par les tiens.
 
 | Rôle | Quoi | Où |
 |---|---|---|
 | Base | base `party`, rôle `partybroc`, schéma `pb` | PostgreSQL 17 existant |
-| Serveur temps réel + site | service NSSM `partybroc` (Node) | `D:\partybroc\server`, port local **4100** |
-| Site compilé | Flutter web | `D:\partybroc\web` |
-| HTTPS public | Caddy | `https://party.foclabroc.duckdns.org` |
+| Serveur temps réel + site | service NSSM `partybroc` (Node) | `C:\partybroc\server`, port local **4100** |
+| Site compilé | Flutter web | `C:\partybroc\web` |
+| HTTPS public | Caddy | `https://party.ton-domaine.fr` |
 
 ## 1. Récupérer le dépôt
 
 ```powershell
-cd D:\
+cd C:\
 git clone https://github.com/foclabroc/partybroc.git
-cd D:\partybroc
+cd C:\partybroc
 ```
 
 ## 2. Base de données
@@ -22,7 +24,7 @@ cd D:\partybroc
 Choisis un mot de passe pour le rôle `partybroc` (garde-le, il sert à l'étape 3).
 
 ```powershell
-cd D:\partybroc\sql
+cd C:\partybroc\sql
 psql -U postgres -d postgres -v pw="MOT_DE_PASSE" -f 00_creer_base.sql
 $env:PGPASSWORD = "MOT_DE_PASSE"
 psql -h localhost -U partybroc -d party -f 01_schema.sql
@@ -49,24 +51,24 @@ En une seule commande, dans l'ordre :
 
 ```powershell
 $env:PGPASSWORD = "MOT_DE_PASSE"
-Get-ChildItem D:\partybroc\sql\[0-9][0-9]_*.sql | Where-Object Name -ne '00_creer_base.sql' | Sort-Object Name | ForEach-Object { psql -h localhost -U partybroc -d party -f $_.FullName }
+Get-ChildItem C:\partybroc\sql\[0-9][0-9]_*.sql | Where-Object Name -ne '00_creer_base.sql' | Sort-Object Name | ForEach-Object { psql -h localhost -U partybroc -d party -f $_.FullName }
 Remove-Item Env:PGPASSWORD
 ```
 
 ## 3. Service Node
 
 ```powershell
-cd D:\partybroc\server
+cd C:\partybroc\server
 npm.cmd ci --omit=dev
 
-nssm install partybroc "C:\Program Files\nodejs\node.exe" "D:\partybroc\server\src\index.js"
-nssm set partybroc AppDirectory D:\partybroc\server
+nssm install partybroc "C:\Program Files\nodejs\node.exe" "C:\partybroc\server\src\index.js"
+nssm set partybroc AppDirectory C:\partybroc\server
 nssm set partybroc AppEnvironmentExtra `
   PB_PORT=4100 `
-  PB_WEB_DIR=D:\partybroc\web `
+  PB_WEB_DIR=C:\partybroc\web `
   "PB_DB_URL=postgresql://partybroc:MOT_DE_PASSE@localhost:5432/party"
-nssm set partybroc AppStdout D:\partybroc\partybroc.log
-nssm set partybroc AppStderr D:\partybroc\partybroc.log
+nssm set partybroc AppStdout C:\partybroc\partybroc.log
+nssm set partybroc AppStderr C:\partybroc\partybroc.log
 nssm set partybroc AppRotateFiles 1
 nssm set partybroc AppRotateBytes 5000000
 nssm set partybroc Start SERVICE_AUTO_START
@@ -79,43 +81,43 @@ Si le mot de passe contient des caractères spéciaux (`@`, `:`, `/`, `#`…), i
 Le site est compilé par GitHub (workflow `web`) à chaque push et déposé dans la release `web-latest`. Le script suivant le télécharge, met à jour le serveur et redémarre le service :
 
 ```powershell
-cd D:\partybroc
+cd C:\partybroc
 .\deploy.ps1
 ```
 
-Le même script sert pour **chaque mise à jour**. Plus simple : double-clique sur **`Mettre a jour.cmd`** dans `D:\partybroc` (il demande les droits administrateur, lance `deploy.ps1` et laisse la fenêtre ouverte à la fin pour lire le résultat). À la fin, `/health` doit répondre `ok: True, db: True`.
+Le même script sert pour **chaque mise à jour**. Plus simple : double-clique sur **`Mettre a jour.cmd`** dans `C:\partybroc` (il demande les droits administrateur, lance `deploy.ps1` et laisse la fenêtre ouverte à la fin pour lire le résultat). À la fin, `/health` doit répondre `ok: True, db: True`.
 
 ## 5. Caddy
 
-Ajoute ce bloc dans le Caddyfile (à côté de Jellyfin et de l'API Pixel Trade), puis recharge Caddy :
+Ajoute ce bloc dans le Caddyfile, puis recharge Caddy :
 
 ```
-party.foclabroc.duckdns.org {
+party.ton-domaine.fr {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:4100
 }
 ```
 
 ```powershell
-caddy reload --config C:\caddy\Caddyfile
+caddy reload --config CHEMIN\VERS\Caddyfile
 ```
 
-Comme pour `api.foclabroc.duckdns.org`, le sous-domaine `party.` suit automatiquement l'IP de DuckDNS, et Caddy fait le certificat tout seul. Le WebSocket (`/ws`) passe par le même bloc.
+Caddy fait le certificat HTTPS tout seul. Le WebSocket (`/ws`) passe par le même bloc.
 
 ## 6. Quiz cinéma et Blind test (accès Internet du serveur)
 
 - **Blind test** : le serveur interroge l'API publique de Deezer (`api.deezer.com`, sans compte ni clé). Il suffit que le PC ait accès à Internet.
-- **Quiz cinéma** : il faut une clé gratuite de [TMDB](https://www.themoviedb.org/settings/api) (créer un compte, puis « API » → clé de type v3). Mets-la seule dans le fichier `D:\partybroc\tmdb.key` (ou dans la variable `PB_TMDB_KEY` du service). Elle est relue à chaque partie : pas besoin de redémarrer. Ce fichier n'est jamais envoyé sur GitHub.
+- **Quiz cinéma** : il faut une clé gratuite de [TMDB](https://www.themoviedb.org/settings/api) (créer un compte, puis « API » → clé de type v3). Mets-la seule dans le fichier `C:\partybroc\tmdb.key` (ou dans la variable `PB_TMDB_KEY` du service). Elle est relue à chaque partie : pas besoin de redémarrer. Ce fichier n'est jamais envoyé sur GitHub.
 
 ## 7. Essayer
 
-- TV : ouvrir `https://party.foclabroc.duckdns.org/tv` dans le navigateur de la TV, ou installer l'appli **PartyBroc TV** ([TV.md](TV.md)).
+- TV : ouvrir `https://party.ton-domaine.fr/tv` dans le navigateur de la TV, ou installer l'appli **PartyBroc TV** ([TV.md](TV.md)).
 - Téléphone : scanner le QR affiché. Sur Android, le site propose « Installer la version Android » (appli **PartyBroc**, publiée par GitHub dans la release `tv-latest`).
 - Écran vide sur un vieux navigateur de TV : essayer `/tv?rendu=cpu` (dessin logiciel) ou `/tv?rendu=gl`.
 
 ## Mises à jour
 
-Double-clic sur **`Mettre a jour.cmd`** dans `D:\partybroc`. Le script :
+Double-clic sur **`Mettre a jour.cmd`** dans `C:\partybroc`. Le script :
 
 1. récupère le code du dépôt GitHub (`git`),
 2. installe les dépendances du serveur (`npm ci`),
@@ -126,7 +128,7 @@ Si la version apporte un fichier SQL, lance-le ensuite avec `psql` (voir l'étap
 
 ## Salon permanent
 
-Sur l'écran TV, bouton **« Salon permanent »** : choisis un nom (5 à 12 lettres, ex. `FAMILLE`) et un mot de passe. Les joueurs entrent avec le nom du salon et le mot de passe (une seule fois par téléphone), même à distance. Pour changer le mot de passe ou supprimer un salon, voir la section « Salons permanents » de [CLAUDE.md](../CLAUDE.md).
+Sur l'écran TV, bouton **« Salon permanent »** : choisis un nom (5 à 12 lettres, ex. `MAISON`) et un mot de passe. Les joueurs entrent avec le nom du salon et le mot de passe (une seule fois par téléphone), même à distance. Pour changer le mot de passe ou supprimer un salon, voir la section « Salons permanents » de [CLAUDE.md](../CLAUDE.md).
 
 ## Ce qui reste privé
 

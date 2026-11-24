@@ -19,7 +19,7 @@ La TV ouvre un salon et affiche un QR code. Chaque invité le scanne avec son t�
 
 ## Comment se passe une soirée
 
-1. **La TV** ouvre `https://party.foclabroc.duckdns.org/tv` (ou l'appli **PartyBroc TV**) : un salon se crée avec un code de 4 lettres et un QR code.
+1. **La TV** ouvre `https://<ton-domaine>/tv` (ou l'appli **PartyBroc TV**) : un salon se crée avec un code de 4 lettres et un QR code.
 2. **Chaque joueur** scanne le QR (ou tape le code, ou touche le salon dans « Salons disponibles » s'il est sur le même Wi-Fi), choisit son pseudo, sa photo et sa couleur.
 3. **Le premier arrivé est l'hôte** : sur son téléphone, il choisit le jeu, règle les options (nombre de questions, temps, playlist…), ajoute des robots s'il manque du monde, puis lance la partie.
 4. **Pendant le jeu**, la TV montre les questions, le plateau, les réponses des autres ; chacun répond ou joue sur son téléphone. Un animateur vocal lit les questions et annonce les résultats.
@@ -98,7 +98,7 @@ Tous les contenus sont **tout public** (pas de questions osées, musiques à par
 - **Score de la soirée** et **classement sur la TV** à la demande de l'hôte.
 - **Équipes** (2 à 4, renommables) : les points des membres s'additionnent.
 - **Soirée enchaînée** : 2 à 6 jeux d'affilée avec un classement général entre chaque jeu et un grand podium final.
-- **Salons permanents** protégés par un mot de passe (ex. `FAMILLE`) : la famille peut jouer à distance, chacun garde son profil, avec scores du jour, classements de tous les temps et statistiques par jeu. Dans ces salons, l'écran du jeu peut aussi s'afficher en petit sur chaque téléphone.
+- **Salons permanents** protégés par un mot de passe (ex. `MAISON`) : la famille peut jouer à distance, chacun garde son profil, avec scores du jour, classements de tous les temps et statistiques par jeu. Dans ces salons, l'écran du jeu peut aussi s'afficher en petit sur chaque téléphone.
 - **Robots** pour les jeux de société.
 - **Animateur vocal**, **musique** au salon, **bruitages** (le tout réglable dans le menu « Sons » de la TV).
 - **Inviter des joueurs** par SMS, WhatsApp, Messenger… depuis le téléphone.
@@ -106,21 +106,21 @@ Tous les contenus sont **tout public** (pas de questions osées, musiques à par
 
 ## Installation
 
-PartyBroc tourne sur un PC maison sous Windows, à côté d'autres services : base PostgreSQL, serveur Node.js lancé comme un service Windows (NSSM), et Caddy pour le HTTPS. Le site est compilé par GitHub, le serveur le télécharge tout seul.
+PartyBroc s'installe sur un PC Windows qui reste allumé : base PostgreSQL, serveur Node.js lancé comme un service Windows (NSSM), et Caddy pour le HTTPS (avec un nom de domaine, par exemple un sous-domaine DuckDNS gratuit). Le site est compilé par GitHub, le serveur le télécharge tout seul.
 
 | Étape | Résumé |
 |---|---|
 | 1. Prérequis | PostgreSQL 17, Node.js 20 ou plus, NSSM, Caddy, Git |
-| 2. Dépôt | `git clone https://github.com/foclabroc/partybroc.git D:\partybroc` |
+| 2. Dépôt | `git clone https://github.com/foclabroc/partybroc.git C:\partybroc` |
 | 3. Base | créer la base `party` et le rôle `partybroc` (`sql/00_creer_base.sql`), puis lancer les fichiers `sql/01_` à `15_` |
 | 4. Service | `npm ci --omit=dev` dans `server/`, puis service NSSM `partybroc` (port 4100, `PB_WEB_DIR`, `PB_DB_URL`) |
 | 5. Site | double-clic sur **`Mettre a jour.cmd`** : télécharge le site compilé, met à jour le code, redémarre le service |
 | 6. HTTPS | un bloc `reverse_proxy 127.0.0.1:4100` dans le Caddyfile |
-| 7. Facultatif | clé TMDB gratuite dans `D:\partybroc\tmdb.key` pour le Quiz cinéma |
+| 7. Facultatif | clé TMDB gratuite dans `C:\partybroc\tmdb.key` pour le Quiz cinéma |
 
 Pas à pas complet : **[docs/INSTALL.md](docs/INSTALL.md)**. Appli Android TV : **[docs/TV.md](docs/TV.md)**.
 
-**Mettre à jour** : double-clic sur `Mettre a jour.cmd` dans `D:\partybroc`. Si une version apporte un nouveau fichier SQL, il est indiqué dans les notes de version ; on le lance avec `psql` comme les autres (tous les fichiers SQL sont relançables). Les applis Android proposent leur mise à jour toutes seules.
+**Mettre à jour** : double-clic sur `Mettre a jour.cmd` dans le dossier de PartyBroc. Si une version apporte un nouveau fichier SQL, il est indiqué dans les notes de version ; on le lance avec `psql` comme les autres (tous les fichiers SQL sont relançables). Les applis Android proposent leur mise à jour toutes seules.
 
 ## Fonctionnement technique
 
@@ -160,7 +160,7 @@ PB_FAST=1 node test/chevaux.test.js               # un seul jeu, délais ÷ 10
 # appli
 cd app && flutter build web --wasm --no-web-resources-cdn   # le serveur sert app/build/web
 flutter analyze
-# écran TV contre le vrai serveur :  /tv?server=https://party.foclabroc.duckdns.org
+# écran TV contre le vrai serveur :  /tv?server=https://<ton-domaine>
 # en cas d'écran vide sur une vieille TV :  /tv?rendu=cpu
 ```
 
