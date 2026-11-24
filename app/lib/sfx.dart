@@ -85,8 +85,8 @@ class SfxDirector {
     if (live == null && _players >= 0 && players > _players) Sfx.instance.play('pop');
     _players = players;
 
-    // Yams : bruit des dés à chaque lancer
-    final roll = live?['id'] == 'yams' ? (live!['rollSeq'] as num?)?.toInt() : null;
+    // Yams, Petits chevaux : bruit des dés à chaque lancer
+    final roll = (live?['id'] == 'yams' || live?['id'] == 'chevaux') ? (live!['rollSeq'] as num?)?.toInt() : null;
     if (roll != null && _ymsRoll != null && roll > _ymsRoll!) Sfx.instance.play('des');
     _ymsRoll = roll;
 

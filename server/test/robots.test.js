@@ -62,6 +62,7 @@ try {
   }
   for (const [game, levels, opts] of [
     ['serpents', ['malin', 'facile'], { arrivee: 'Dès 100' }],
+    ['chevaux', ['malin', 'facile', 'malin'], { arrivee: 'Rapide', chevaux: 2 }],
     ['oie', ['malin', 'facile', 'malin'], {}],
     ['yams', ['malin', 'facile'], {}],
     ['pioche', ['malin', 'facile', 'malin'], { cards: 5 }],

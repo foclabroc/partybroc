@@ -13,6 +13,7 @@ import 'memoire_ui.dart';
 import 'preferences_ui.dart';
 import 'quiadit_ui.dart';
 import 'bluff_ui.dart';
+import 'chevaux_ui.dart';
 import 'chiffres_ui.dart';
 import 'photoroulette_ui.dart';
 import 'loto_ui.dart';
@@ -58,6 +59,7 @@ Widget tvGameView(RoomView room) {
     'pioche' => PchTv(room: room, live: live),
     'oie' => OieTv(room: room, live: live),
     'serpents' => SnkTv(room: room, live: live),
+    'chevaux' => ChvTv(room: room, live: live),
     'yams' => YmsTv(room: room, live: live),
     'skipbroc' => SbrTv(room: room, live: live),
     'scrabroc' => ScrTv(room: room, live: live),

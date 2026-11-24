@@ -65,6 +65,29 @@ const gameRules = <String, (String, List<(String, List<String>)>)>{
       ('Points', ['Le gagnant marque 1000, les autres 8 points par case atteinte.']),
     ],
   ),
+  'chevaux': (
+    '🐴 Petits chevaux',
+    [
+      ('But', ['Être la première couleur à faire entrer tous ses chevaux au centre du plateau.']),
+      ('À ton tour', [
+        'Lance le dé (20 secondes, sinon il est lancé pour toi).',
+        'Si plusieurs chevaux peuvent bouger, choisis lequel sur ton téléphone (les chevaux sont numérotés).',
+        'Il faut un 6 pour sortir un cheval de l’écurie : il se pose sur sa case de départ (le rond entouré de blanc).',
+        'Un 6 : tu rejoues ! (2 fois de suite au plus.)',
+        'Les chevaux tournent dans le sens des aiguilles d’une montre.',
+      ]),
+      ('Manger', [
+        'Si ton cheval s’arrête pile sur un cheval d’une autre couleur, celui-ci retourne à son écurie.',
+        'Deux chevaux de la même couleur peuvent être sur la même case.',
+      ]),
+      ('L’escalier', [
+        'Option « Escalier » (règle française) : il faut s’arrêter pile sur la flèche devant son escalier. Ensuite, il faut un 1 pour monter sur la marche 1, un 2 pour la marche 2… jusqu’à 6, puis encore un 6 pour entrer au centre.',
+        'Option « Rapide » : on monte l’escalier avec n’importe quel dé, mais il faut tomber pile au centre.',
+      ]),
+      ('Équipes', ['Plus de 4 joueurs : une équipe par couleur. Les joueurs de l’équipe lancent le dé chacun leur tour.']),
+      ('Points', ['La couleur gagnante marque 1000 (pour chacun de ses joueurs), les autres 4 points par case parcourue par leurs chevaux.']),
+    ],
+  ),
   'yams': (
     '🎲 Yams',
     [

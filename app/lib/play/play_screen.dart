@@ -34,6 +34,7 @@ import '../games/zoom_ui.dart';
 import '../games/draw_board.dart';
 import '../games/droles_ui.dart';
 import '../games/bluff_ui.dart';
+import '../games/chevaux_ui.dart';
 import '../games/chiffres_ui.dart';
 import '../games/quidenous_ui.dart';
 import '../games/quiz_play.dart';
@@ -568,6 +569,8 @@ class _PlayScreenState extends State<PlayScreen> {
         return PchPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
       case 'oie':
         return OiePlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'chevaux':
+        return ChvPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'serpents':
         return SnkPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'yams':

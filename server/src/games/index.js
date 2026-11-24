@@ -19,6 +19,7 @@ import { ExpressionsGame, EXP } from './expressions.js';
 import { PiocheGame, PCH } from './pioche.js';
 import { OieGame } from './oie.js';
 import { SerpentsGame, SNK } from './serpents.js';
+import { ChevauxGame, CHV } from './chevaux.js';
 import { YamsGame, YMS } from './yams.js';
 import { SkipBrocGame, SBR, STOCK_OPTIONS } from './skipbroc.js';
 import { ScrabrocGame, SCR } from './scrabroc.js';
@@ -125,6 +126,12 @@ export const GAMES = [
   { id: 'serpents',  title: 'Serpents et échelles', emoji: '🐍', min: 2, cat: 'societe', ready: true, bots: true, impl: SerpentsGame,
     pitch: 'Grimpe aux échelles, évite les serpents, premier sur la 100 !',
     options: { arrivee: { label: 'Arrivée', values: SNK.ends, def: SNK.defaultEnd } } },
+  { id: 'chevaux',   title: 'Petits chevaux',   emoji: '🐴', min: 2, cat: 'societe', ready: true, bots: true, impl: ChevauxGame,
+    pitch: 'Un 6 pour sortir, mange les chevaux des autres, monte l’escalier jusqu’au centre !',
+    options: {
+      arrivee: { label: 'Arrivée', values: CHV.ends, def: CHV.ends[0] },
+      chevaux: { label: 'Chevaux', values: CHV.horses, def: 4 },
+    } },
   { id: 'yams',      title: 'Yams',             emoji: '🎲', min: 1, cat: 'societe', ready: true, bots: true, impl: YamsGame,
     pitch: '5 dés, 3 lancers, 13 cases à remplir : vise le Yams !',
     options: { temps: { label: 'Secondes par tour', values: YMS.times, def: YMS.defaultTime } } },
