@@ -12,6 +12,8 @@ import 'justeprix_ui.dart';
 import 'memoire_ui.dart';
 import 'preferences_ui.dart';
 import 'quiadit_ui.dart';
+import 'bluff_ui.dart';
+import 'chiffres_ui.dart';
 import 'photoroulette_ui.dart';
 import 'loto_ui.dart';
 import 'oie_ui.dart';
@@ -62,6 +64,8 @@ Widget tvGameView(RoomView room) {
     'pouilleux' => PouTv(room: room, live: live),
     'tas' => TasTv(room: room, live: live),
     'loto' => LotoTv(room: room, live: live),
+    'bluff' => BlfTv(room: room, live: live),
+    'chiffres' => CelTv(room: room, live: live),
     _ => const SizedBox.shrink(),
   };
 }

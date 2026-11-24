@@ -28,6 +28,8 @@ import { LotoGame, LOTO } from './loto.js';
 import { BlindTestGame, BT, BT_CHOICES } from './blindtest.js';
 import { CineGame, CINE, CINE_CHOICES, CINE_HINTS } from './cine.js';
 import { MeningesGame, MNG } from './meninges.js';
+import { BluffGame, BLF } from './bluff.js';
+import { ChiffresGame, CEL } from './chiffres.js';
 
 export const GAMES = [
   { id: 'dessin',    title: 'Dessin à deviner', emoji: '🎨', min: 3, cat: 'fun', ready: true, impl: DessinGame,
@@ -101,6 +103,19 @@ export const GAMES = [
     options: {
       rounds: { label: 'Manches', values: MNG.rounds, def: MNG.defaultRounds },
       without: { label: 'Sans', values: MNG.without, def: MNG.without[0] },
+    } },
+  { id: 'bluff',     title: 'Vrai ou Bluff',    emoji: '🤥', min: 3, cat: 'fun', ready: true, impl: BluffGame,
+    pitch: 'Raconte une anecdote sur toi… vraie ou inventée ? Les autres votent !',
+    options: {
+      ecriture: { label: 'Temps pour écrire', values: BLF.writes, def: BLF.defaultWrite },
+      vote: { label: 'Temps de vote', values: BLF.votes, def: BLF.defaultVote },
+    } },
+  { id: 'chiffres',  title: 'Chiffres et lettres', emoji: '🔢', min: 1, cat: 'fun', ready: true, impl: ChiffresGame,
+    pitch: 'Le mot le plus long et le compte est bon, comme à la télé !',
+    options: {
+      mode: { label: 'Manches', values: CEL.modes, def: CEL.modes[0] },
+      rounds: { label: 'Nombre', values: CEL.rounds, def: CEL.defaultRounds },
+      temps: { label: 'Temps', values: CEL.times, def: CEL.defaultTime },
     } },
   { id: 'pioche',    title: 'Broc-Pioche',      emoji: '🃏', min: 2, cat: 'societe', ready: true, bots: true, impl: PiocheGame,
     pitch: 'Pose la même couleur ou le même symbole, vide ta main le premier !',

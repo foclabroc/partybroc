@@ -171,6 +171,14 @@ class VoiceDirector {
         if (phase == 'pick') return 'Choisissez vos photos sur votre téléphone !';
         if (phase == 'ask') return 'À qui est cette photo ?';
         if (phase == 'reveal') return 'C’était à ${name(live['owner'])} !';
+      case 'bluff':
+        if (phase == 'write') return 'Écrivez votre anecdote en secret !';
+        if (phase == 'ask') return '${name(live['author'])}, défends ton histoire ! Vrai, ou bluff ?';
+        if (phase == 'reveal') return live['truth'] == 'v' ? 'C’était vrai !' : 'C’était un bluff !';
+      case 'chiffres':
+        if (phase == 'draw' && (live['letters'] as List? ?? const []).isEmpty) return '${name(live['drawer'])} fait le tirage !';
+        if (phase == 'think' && live['kind'] == 'C') return 'Le compte est bon : ${live['target']} !';
+        if (phase == 'think' && live['kind'] == 'L') return 'Le mot le plus long, c’est parti !';
       case 'calcul':
         if (phase == 'ask') return '${s('expr')} ?';
         if (phase == 'reveal') return 'Résultat : ${live['value']}';

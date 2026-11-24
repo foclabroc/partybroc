@@ -33,6 +33,8 @@ import '../games/survie_ui.dart';
 import '../games/zoom_ui.dart';
 import '../games/draw_board.dart';
 import '../games/droles_ui.dart';
+import '../games/bluff_ui.dart';
+import '../games/chiffres_ui.dart';
 import '../games/quidenous_ui.dart';
 import '../games/quiz_play.dart';
 import '../games/reflexes_ui.dart';
@@ -220,6 +222,8 @@ class _PlayScreenState extends State<PlayScreen> {
         MngLive.q.value = m;
       case 'scr_preview':
         ScrPreview.value.value = m;
+      case 'cel_word_res':
+        CelWord.value.value = m;
       case 'scr_refused':
         _toast('❌ ${m['msg']}');
       case 'dsn_close':
@@ -576,6 +580,10 @@ class _PlayScreenState extends State<PlayScreen> {
         return PouPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
       case 'tas':
         return TasPlay(room: room, live: live!, you: _you, isHost: host, send: _sock.send);
+      case 'bluff':
+        return BlfPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
+      case 'chiffres':
+        return CelPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
       case 'loto':
         return LotoPlay(room: room, live: live!, you: _you, myPid: _myPid, isHost: host, send: _sock.send);
     }
