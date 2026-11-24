@@ -36,6 +36,15 @@ export const BT_PLAYLISTS = [
   { name: 'Disney', left: 'film', sources: [{ playlist: 613860315 }] },
   { name: 'Films et séries', sources: [{ playlist: 6238866284 }, { playlist: 6223140704 }, { playlist: 6478306844 }, { playlist: 754776991 }, { playlist: 6166580664 }] },
   { name: 'Génériques télé', sources: [{ playlist: 9976576142 }] },
+  { name: 'Dessins animés', sources: [{ playlist: 15999794903 }, { playlist: 15141056763 }, { playlist: 15938341603 }, { playlist: 15979242483 }] },
+  { name: 'Rock', sources: [{ playlist: 1306931615 }, { playlist: 8621268482 }, { playlist: 847814561 }] },
+  // Rap tout public : « Le Rap pour les Kids » sans les étrangers, + classiques choisis (artists = seulement eux)
+  { name: 'Rap français', sources: [
+    { playlist: 2533321144, skip: ['Mark Ronson', 'The Kid Laroi', 'Will Smith', 'Pharrell Williams', 'Lil Nas X'] },
+    { playlist: 1182010551, artists: ['IAM', 'MC Solaar', 'Saïan Supa Crew', 'Fonky Family', '113', 'Les Sages Poètes De La Rue'] },
+    { playlist: 4676814864, artists: ['MC Solaar', "Diam's", '113', 'Psy 4 De La Rime', 'Matt', 'Cheb Mami', 'Salif'] },
+  ] },
+  { name: 'Dance / Disco', sources: [{ playlist: 2015058202 }, { playlist: 4699436964 }, { playlist: 4135981802 }, { playlist: 1251129741 }] },
 ];
 export const BT_CHOICES = [...BT_PLAYLISTS.map((p) => p.name), 'Mélange'];
 
@@ -70,9 +79,12 @@ export class BlindTestGame extends BaseGame {
     const name = BT_CHOICES.includes(opts?.playlist) ? opts.playlist : BT_CHOICES[0];
     const lists = name === 'Mélange' ? BT_PLAYLISTS : BT_PLAYLISTS.filter((p) => p.name === name);
     const sources = lists.flatMap((p) => p.sources.map((s) => ({ ...s, group: p.name })));
+    // Filtre d'une source : artists = seulement ces artistes, skip = sans eux
+    const allow = (t, s) => (!s.artists || s.artists.some((a) => fold(a) === fold(t.artist)))
+      && !(s.skip || []).some((a) => fold(a) === fold(t.artist));
     const left = Object.fromEntries(BT_PLAYLISTS.map((p) => [p.name, p.left || 'artist']));
     // Colonne de gauche : l'artiste, ou le film (Disney)
-    const pool = (await loadTracks(sources))
+    const pool = (await loadTracks(sources, allow))
       .map((t) => ({ ...t, kind: left[t.group], left: left[t.group] === 'film' ? cleanAlbum(t.album) : t.artist }))
       .filter((t) => t.left && t.left.length <= 40);
     if (pool.length < 8) throw new Error('Pas assez de musiques dans cette playlist pour le moment, essaie une autre');

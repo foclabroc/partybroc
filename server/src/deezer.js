@@ -61,8 +61,8 @@ async function loadSource(src, group) {
 }
 
 // Charge plusieurs sources ; une source en panne est ignorée si les autres répondent
-export async function loadTracks(sources) {
-  const lists = await Promise.allSettled(sources.map((s) => loadSource(s, s.group)));
+export async function loadTracks(sources, allow = () => true) {
+  const lists = await Promise.allSettled(sources.map(async (s) => (await loadSource(s, s.group)).filter((t) => allow(t, s))));
   const ok = lists.filter((r) => r.status === 'fulfilled').map((r) => r.value);
   if (!ok.length) throw new Error('Deezer ne répond pas, réessaie dans un instant');
   // Une même chanson peut être dans deux playlists : une seule fois
