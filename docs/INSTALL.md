@@ -36,10 +36,22 @@ psql -h localhost -U partybroc -d party -f 08_quiadit.sql
 psql -h localhost -U partybroc -d party -f 09_vraifaux.sql
 psql -h localhost -U partybroc -d party -f 10_stats.sql
 psql -h localhost -U partybroc -d party -f 11_quiadit_plus.sql
+psql -h localhost -U partybroc -d party -f 12_rebus.sql
+psql -h localhost -U partybroc -d party -f 13_quiz_plus.sql
+psql -h localhost -U partybroc -d party -f 14_expressions.sql
+psql -h localhost -U partybroc -d party -f 15_jours.sql
 Remove-Item Env:PGPASSWORD
 ```
 
-Tous les fichiers sont relançables. Chaque nouveau jeu apportera son fichier (`03_…`) : il suffit de le lancer de la même façon.
+Tous les fichiers sont relançables. Quand une nouvelle version apporte un fichier SQL (`16_…`), il suffit de le lancer de la même façon.
+
+En une seule commande, dans l'ordre :
+
+```powershell
+$env:PGPASSWORD = "MOT_DE_PASSE"
+Get-ChildItem D:\partybroc\sql\[0-9][0-9]_*.sql | Where-Object Name -ne '00_creer_base.sql' | Sort-Object Name | ForEach-Object { psql -h localhost -U partybroc -d party -f $_.FullName }
+Remove-Item Env:PGPASSWORD
+```
 
 ## 3. Service Node
 
@@ -90,10 +102,31 @@ caddy reload --config C:\caddy\Caddyfile
 
 Comme pour `api.foclabroc.duckdns.org`, le sous-domaine `party.` suit automatiquement l'IP de DuckDNS, et Caddy fait le certificat tout seul. Le WebSocket (`/ws`) passe par le même bloc.
 
-## 6. Essayer
+## 6. Quiz cinéma et Blind test (accès Internet du serveur)
 
-- TV : ouvrir `https://party.foclabroc.duckdns.org/tv` dans le navigateur de la TV.
-- Téléphone : scanner le QR affiché.
+- **Blind test** : le serveur interroge l'API publique de Deezer (`api.deezer.com`, sans compte ni clé). Il suffit que le PC ait accès à Internet.
+- **Quiz cinéma** : il faut une clé gratuite de [TMDB](https://www.themoviedb.org/settings/api) (créer un compte, puis « API » → clé de type v3). Mets-la seule dans le fichier `D:\partybroc\tmdb.key` (ou dans la variable `PB_TMDB_KEY` du service). Elle est relue à chaque partie : pas besoin de redémarrer. Ce fichier n'est jamais envoyé sur GitHub.
+
+## 7. Essayer
+
+- TV : ouvrir `https://party.foclabroc.duckdns.org/tv` dans le navigateur de la TV, ou installer l'appli **PartyBroc TV** ([TV.md](TV.md)).
+- Téléphone : scanner le QR affiché. Sur Android, le site propose « Installer la version Android » (appli **PartyBroc**, publiée par GitHub dans la release `tv-latest`).
+- Écran vide sur un vieux navigateur de TV : essayer `/tv?rendu=cpu` (dessin logiciel) ou `/tv?rendu=gl`.
+
+## Mises à jour
+
+Double-clic sur **`Mettre a jour.cmd`** dans `D:\partybroc`. Le script :
+
+1. récupère le code du dépôt GitHub (`git`),
+2. installe les dépendances du serveur (`npm ci`),
+3. télécharge le site compilé (release `web-latest`) et le fichier `assetlinks.json` des applis Android,
+4. redémarre le service `partybroc` et vérifie `/health`.
+
+Si la version apporte un fichier SQL, lance-le ensuite avec `psql` (voir l'étape 2). Les applis Android (TV et téléphone) voient la nouvelle version toutes seules et proposent de l'installer.
+
+## Salon permanent
+
+Sur l'écran TV, bouton **« Salon permanent »** : choisis un nom (5 à 12 lettres, ex. `FAMILLE`) et un mot de passe. Les joueurs entrent avec le nom du salon et le mot de passe (une seule fois par téléphone), même à distance. Pour changer le mot de passe ou supprimer un salon, voir la section « Salons permanents » de [CLAUDE.md](../CLAUDE.md).
 
 ## Ce qui reste privé
 
